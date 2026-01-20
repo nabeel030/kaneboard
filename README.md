@@ -15,7 +15,7 @@ Kaneboard supports:
 ## ✨ Features
 
 ### ✅ Core
-- Laravel 10+
+- Laravel 12+
 - Vue 3 + TypeScript
 - Inertia.js
 - Tailwind CSS
