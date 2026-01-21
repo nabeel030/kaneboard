@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TicketController extends Controller
 {
@@ -13,8 +15,10 @@ class TicketController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'status' => ['required', 'string'], 
+            'status' => ['required', 'string'],
             'assigned_to' => ['nullable','exists:users,id'],
+            'files' => ['nullable', 'array'],
+            'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf','max:10240'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -26,11 +30,11 @@ class TicketController extends Controller
         if (!empty($data['assigned_to'])) {
             $allowed = $project->owner_id === (int)$data['assigned_to']
                 || $project->members()->where('users.id', $data['assigned_to'])->exists();
-        
+
             abort_unless($allowed, 422);
         }
 
-        Ticket::create([
+        $ticket = Ticket::create([
             'project_id' => $project->id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
@@ -39,6 +43,21 @@ class TicketController extends Controller
             'created_by' => $request->user()->id,
             'assigned_to' => $data['assigned_to'] ?? null
         ]);
+
+        $files = $request->file('files', []);
+        foreach ($files as $file) {
+            $filename = Str::uuid() . '-' . $file->getClientOriginalName();
+            $path = $file->storeAs("tickets/{$ticket->id}", $filename, 'public');
+
+            TicketAttachment::create([
+                'ticket_id' => $ticket->id,
+                'uploaded_by' => $request->user()->id,
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+            ]);
+        }
 
         return back();
     }

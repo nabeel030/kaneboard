@@ -6,7 +6,6 @@ import draggable from 'vuedraggable';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import AppearanceTabs from '@/components/AppearanceTabs.vue';
 
 const page = usePage();
 const authUser = page.props.auth?.user as { id: number; name: string; email?: string } | null;
@@ -127,6 +126,7 @@ const form = useForm({
   description: '',
   status: 'backlog',
   assigned_to: null as number | null,
+  files: [] as File[],
 });
 
 function openAddModal(status: string) {
@@ -166,6 +166,7 @@ function submitTicket() {
 
   form.post(`/projects/${state.selectedProjectId}/tickets`, {
     preserveScroll: true,
+    forceFormData: true, // ✅ required for file uploads
     onSuccess: () => closeModal(),
   });
 }
@@ -228,6 +229,11 @@ function destroyTicket() {
     onSuccess: () => closeEditModal(),
   });
 }
+function onFilesChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  form.files = input.files ? Array.from(input.files) : [];
+}
+
 </script>
 
 <template>
@@ -375,6 +381,28 @@ function destroyTicket() {
                   {{ m.name }} ({{ m.email }})
                 </option>
               </select>
+
+              <div>
+  <label class="text-sm">Attachments</label>
+
+  <input
+    type="file"
+    multiple
+    class="cursor-pointer mt-1 w-full rounded border px-3 py-2 text-sm"
+    @change="onFilesChange"
+  />
+
+  <div v-if="form.files?.length" class="mt-2 space-y-1 text-xs text-muted-foreground">
+    <div v-for="(f, i) in form.files" :key="i">
+      • {{ f.name }}
+    </div>
+  </div>
+
+  <div v-if="form.errors.files" class="mt-1 text-sm text-red-600">
+    {{ form.errors.files }}
+  </div>
+</div>
+
 
               <div class="flex justify-end gap-2">
                 <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm" @click="closeModal">
