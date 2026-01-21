@@ -18,7 +18,7 @@ class TicketController extends Controller
             'status' => ['required', 'string'],
             'assigned_to' => ['nullable','exists:users,id'],
             'files' => ['nullable', 'array'],
-            'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf','max:10240'],
+            'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf,zip','max:10240'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -60,6 +60,15 @@ class TicketController extends Controller
         }
 
         return back();
+    }
+
+    public function show(Ticket $ticket)
+    {
+        $ticket->load('project', 'assignee', 'creator', 'attachments');
+
+        return inertia('Ticket/Show', [
+            'ticket' => $ticket,
+        ]);
     }
 
     public function update(Request $request, Ticket $ticket)

@@ -234,6 +234,11 @@ function onFilesChange(e: Event) {
   form.files = input.files ? Array.from(input.files) : [];
 }
 
+function goToTicketDetails() {
+  if (!editState.ticketId) return;
+  router.get(`/tickets/${editState.ticketId}`, {}, { preserveScroll: true });
+}
+
 </script>
 
 <template>
@@ -477,6 +482,7 @@ function onFilesChange(e: Event) {
               </select>
 
               <div class="flex justify-between">
+
                 <button
                   v-if="canEditSelectedTicket"
                   type="button"
@@ -488,9 +494,13 @@ function onFilesChange(e: Event) {
                 <div v-else />
 
                 <div class="flex gap-2">
-                  <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm" @click="closeEditModal">
-                    Close
-                  </button>
+                  <button
+                        type="button"
+                        class="cursor-pointer rounded border px-3 py-2 text-sm"
+                        @click="goToTicketDetails"
+                    >
+                        View details
+                    </button>
 
                   <button
                     v-if="canEditSelectedTicket"

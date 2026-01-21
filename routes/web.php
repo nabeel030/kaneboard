@@ -27,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/projects/{project}/tickets', [TicketController::class, 'store'])->name('tickets.store');
     Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
     Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy'])->name('tickets.destroy');
+    Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
 
     // drag/drop reorder + move
     Route::post('/projects/{project}/board/reorder', [BoardController::class, 'reorder'])->name('board.reorder');
