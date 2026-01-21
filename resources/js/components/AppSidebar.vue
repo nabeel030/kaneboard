@@ -17,13 +17,13 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import projects from '@/routes/projects';
-import teams from '@/routes/teams';
+import members from '@/routes/members';
 
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
-    { title: 'Teams', href: teams.index(), icon: Users },
+    { title: 'Members', href: members.index(), icon: Users },
     { title: 'Projects', href: projects.index(), icon: FolderKanban },
     { title: 'Kaneboard', href: '/kaneboard', icon: Kanban },
 ];

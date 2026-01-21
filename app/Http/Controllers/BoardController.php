@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Ticket;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,10 +15,8 @@ class BoardController extends Controller
         $userId = $request->user()->id;
 
         $projects = Project::query()
-            ->whereHas('team', function ($q) use ($userId) {
-                $q->where('owner_id', $userId)
-                  ->orWhereHas('members', fn ($m) => $m->where('users.id', $userId));
-            })
+            ->where('owner_id', $userId)
+            ->orWhereHas('members', fn ($m) => $m->where('users.id', $userId))
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -33,15 +32,30 @@ class BoardController extends Controller
                 ->where('project_id', $selectedProject->id)
                 ->orderBy('status')
                 ->orderBy('position')
-                ->get(['id', 'title', 'description', 'status', 'position']);
+                ->get(['id', 'title', 'description', 'status', 'position', 'created_by', 'assigned_to']);
 
             foreach ($tickets as $t) {
                 $columns[$t->status][] = $t;
             }
         }
 
+        $members = [];
+
+        if ($selectedProject) {
+            $projectModel = Project::find($selectedProject->id);
+            $this->authorize('view', $projectModel);
+
+            $members = User::query()
+                ->where('id', $projectModel->owner_id)
+                ->orWhereHas('projects', fn($q) => $q->where('projects.id', $projectModel->id))
+                ->orderBy('name')
+                ->get(['id','name','email']);
+        }
+
+
         return inertia('Board/Index', [
             'projects' => $projects,
+            'members' => $members,
             'selectedProjectId' => $selectedProject?->id,
             'columns' => $columns,
             'statuses' => Ticket::STATUSES,
@@ -50,6 +64,8 @@ class BoardController extends Controller
 
     public function show(Project $project)
     {
+        $this->authorize('view', $project);
+
         $tickets = $project->tickets()
             ->orderBy('status')
             ->orderBy('position')
@@ -72,6 +88,8 @@ class BoardController extends Controller
 
     public function reorder(Request $request, Project $project)
     {
+        $this->authorize('view', $project);
+
         $data = $request->validate([
             'columns' => ['required', 'array'],
             'columns.*' => ['array'],

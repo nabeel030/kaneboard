@@ -13,7 +13,8 @@ class TicketController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'status' => ['required', 'string'], // validate below
+            'status' => ['required', 'string'], 
+            'assigned_to' => ['nullable','exists:users,id'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -22,6 +23,13 @@ class TicketController extends Controller
             ->where('status', $data['status'])
             ->max('position');
 
+        if (!empty($data['assigned_to'])) {
+            $allowed = $project->owner_id === (int)$data['assigned_to']
+                || $project->members()->where('users.id', $data['assigned_to'])->exists();
+        
+            abort_unless($allowed, 422);
+        }
+
         Ticket::create([
             'project_id' => $project->id,
             'title' => $data['title'],
@@ -29,6 +37,7 @@ class TicketController extends Controller
             'status' => $data['status'],
             'position' => $nextPos + 1,
             'created_by' => $request->user()->id,
+            'assigned_to' => $data['assigned_to'] ?? null
         ]);
 
         return back();
@@ -36,6 +45,8 @@ class TicketController extends Controller
 
     public function update(Request $request, Ticket $ticket)
     {
+        $this->authorize('update', $ticket);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -64,6 +75,7 @@ class TicketController extends Controller
 
     public function destroy(Request $request, Ticket $ticket)
     {
+        $this->authorize('delete', $ticket);
         $ticket->delete();
         return back();
     }

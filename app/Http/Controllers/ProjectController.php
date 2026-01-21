@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use App\Models\Team;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
@@ -12,23 +13,22 @@ class ProjectController extends Controller
         $userId = $request->user()->id;
 
         $projects = Project::query()
-            ->whereHas('team', function ($q) use ($userId) {
-                $q->where('owner_id', $userId)
-                  ->orWhereHas('members', fn ($m) => $m->where('users.id', $userId));
-            })
-            ->with('team:id,name')
+            ->where('owner_id', $userId)
+            ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId))
+            ->with('owner:id,name,email')
             ->latest()
-            ->get(['id','team_id','name','description','created_at']);
+            ->get(['id', 'owner_id', 'name', 'description', 'created_at']);
 
         return inertia('Projects/Index', [
-            'projects' => $projects->map(function ($p) {
+            'projects' => $projects->map(function ($p) use ($userId) {
                 return [
                     'id' => $p->id,
-                    'team_id' => $p->team_id,
+                    'owner_id' => $p->owner_id,
                     'name' => $p->name,
                     'description' => $p->description,
                     'created_at' => $p->created_at,
-                    'team' => $p->team?->only(['id','name']),
+                    'owner' => $p->owner?->only(['id', 'name', 'email']),
+                    'is_owner' => $p->owner_id === $userId,
                 ];
             }),
         ]);
@@ -36,100 +36,91 @@ class ProjectController extends Controller
 
     public function create(Request $request)
     {
-        $teams = $this->userTeams($request);
-
-        return inertia('Projects/Create', [
-            'teams' => $teams,
-        ]);
+        // Only logged-in user can create; usually owner-only is fine
+        // If you want *any* user to create their own projects, keep as-is.
+        return inertia('Projects/Create');
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'team_id' => ['required', 'integer', 'exists:teams,id'],
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $team = Team::findOrFail($data['team_id']);
-        $this->authorizeTeam($request, $team);
+        $project = Project::create([
+            'owner_id' => $request->user()->id,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+        ]);
 
-        $project = Project::create($data);
+        // Make sure owner can access via pivot too (optional but handy)
+        $project->members()->syncWithoutDetaching([
+            $request->user()->id => ['role' => 'owner'],
+        ]);
 
         return redirect()->route('projects.show', $project);
     }
 
     public function show(Request $request, Project $project)
     {
-        $project->load('team:id,name,owner_id');
-        $this->authorizeTeam($request, $project->team);
+        $this->authorize('view', $project);
+
+        $project->load([
+            'owner:id,name,email',
+            'members:id,name,email',
+        ]);
+
+        $allMembers = User::query()
+        ->where('id', '!=', $request->user()->id) // optional
+        ->orderBy('name')
+        ->get(['id','name','email']);
 
         return inertia('Projects/Show', [
-            'project' => $project->only(['id','team_id','name','description']),
-            'team' => $project->team->only(['id','name']),
+            'project' => $project->only(['id', 'owner_id', 'name', 'description']),
+            'owner' => $project->owner?->only(['id', 'name', 'email']),
+            'members' => $project->members->map(fn ($u) => $u->only(['id', 'name', 'email'])),
+            'allMembers' => $allMembers,
+            'can' => [
+                'update' => $request->user()->can('update', $project),
+                'delete' => $request->user()->can('delete', $project),
+                'manageMembers' => $request->user()->can('manageMembers', $project),
+            ],
         ]);
     }
 
     public function edit(Request $request, Project $project)
     {
-        $project->load('team:id,name,owner_id');
-        $this->authorizeTeam($request, $project->team);
-
-        $teams = $this->userTeams($request);
+        $this->authorize('update', $project);
 
         return inertia('Projects/Edit', [
-            'project' => $project->only(['id','team_id','name','description']),
-            'teams' => $teams,
+            'project' => $project->only(['id', 'owner_id', 'name', 'description']),
         ]);
     }
 
     public function update(Request $request, Project $project)
     {
-        $project->load('team:id,name,owner_id');
-        $this->authorizeTeam($request, $project->team);
+        $this->authorize('update', $project);
 
         $data = $request->validate([
-            'team_id' => ['required', 'integer', 'exists:teams,id'],
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $newTeam = Team::findOrFail($data['team_id']);
-        $this->authorizeTeam($request, $newTeam);
-
-        $project->update($data);
+        $project->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+        ]);
 
         return redirect()->route('projects.show', $project);
     }
 
     public function destroy(Request $request, Project $project)
     {
-        $project->load('team:id,owner_id');
-        $this->authorizeTeam($request, $project->team);
+        $this->authorize('delete', $project);
 
         $project->delete();
 
         return redirect()->route('projects.index');
-    }
-
-    private function userTeams(Request $request)
-    {
-        $userId = $request->user()->id;
-
-        return Team::query()
-            ->where('owner_id', $userId)
-            ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId))
-            ->orderBy('name')
-            ->get(['id','name']);
-    }
-
-    private function authorizeTeam(Request $request, Team $team): void
-    {
-        $userId = $request->user()->id;
-
-        $isAllowed = $team->owner_id === $userId
-            || $team->members()->where('users.id', $userId)->exists();
-
-        abort_unless($isAllowed, 403);
     }
 }

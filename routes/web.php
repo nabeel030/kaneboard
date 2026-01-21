@@ -30,6 +30,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // drag/drop reorder + move
     Route::post('/projects/{project}/board/reorder', [BoardController::class, 'reorder'])->name('board.reorder');
+
+    Route::get('/members', [MemberController::class, 'index'])->name('members.index');
+    Route::post('/members/store', [MemberController::class, 'store'])->name('members.store');
+    Route::post('/projects/{project}/members', [ProjectMemberController::class, 'store'])->name('projects.members.store');
+    Route::delete('/projects/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])->name('projects.members.destroy');
+
 });
 
 require __DIR__.'/settings.php';
