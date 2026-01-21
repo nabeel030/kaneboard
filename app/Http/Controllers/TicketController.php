@@ -64,10 +64,17 @@ class TicketController extends Controller
 
     public function show(Ticket $ticket)
     {
-        $ticket->load('project', 'assignee', 'creator', 'attachments');
+        $ticket->load([
+            'creator:id,name,email',
+            'assignee:id,name,email',
+            'project:id,name',
+            'attachments',
+            'comments.user:id,name,email',
+        ]);
 
         return inertia('Ticket/Show', [
             'ticket' => $ticket,
+            'comments' => $ticket->comments()->with('user:id,name,email')->latest()->get()
         ]);
     }
 
@@ -79,6 +86,7 @@ class TicketController extends Controller
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', 'string'],
+            'assigned_to' => ['nullable','exists:users,id'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -96,6 +104,17 @@ class TicketController extends Controller
 
         $ticket->title = $data['title'];
         $ticket->description = $data['description'] ?? null;
+
+        if (!empty($data['assigned_to'])) {
+            $project = $ticket->project;
+            $allowed = $project->owner_id === (int)$data['assigned_to']
+                || $project->members()->where('users.id', $data['assigned_to'])->exists();
+
+            abort_unless($allowed, 422);
+        }
+
+        $ticket->assigned_to = $data['assigned_to'] ?? null;
+
         $ticket->save();
 
         return back();

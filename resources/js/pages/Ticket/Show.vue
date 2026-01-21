@@ -1,12 +1,28 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage, useForm  } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
+
+function fromNow(date: string) {
+  return dayjs(date).fromNow();
+}
 
 type User = { id: number; name: string; email?: string | null };
+
+type Comment = {
+  id: number;
+  body: string;
+  created_at: string;
+  user: User;
+  user_id: number;
+};
 
 type Attachment = {
   id: number;
@@ -38,6 +54,7 @@ type Ticket = {
 const props = defineProps<{
   ticket: Ticket;
   statuses?: string[];
+  comments: Comment[];
 }>();
 
 const labels: Record<string, string> = {
@@ -79,6 +96,31 @@ function isImage(mime?: string | null) {
 
 function isPdf(mime?: string | null) {
   return mime === 'application/pdf';
+}
+
+const commentForm = useForm({
+  body: '',
+});
+
+function submitComment() {
+  if (!props.ticket?.id) return;
+
+  commentForm.post(`/tickets/${props.ticket.id}/comments`, {
+    preserveScroll: true,
+    onSuccess: () => commentForm.reset('body'),
+  });
+}
+
+function deleteComment(commentId: number) {
+  if (!confirm('Delete this comment?')) return;
+
+  commentForm.delete(`/tickets/${props.ticket.id}/comments/${commentId}`, {
+    preserveScroll: true,
+  });
+}
+
+function canDeleteComment(c: Comment) {
+  return !!authUser?.id && c.user_id === authUser.id;
 }
 
 </script>
@@ -236,6 +278,68 @@ function isPdf(mime?: string | null) {
                 </div>
               </div>
             </div>
+            <!-- Comments -->
+<div class="mt-6">
+  <div class="text-sm font-semibold">Comments</div>
+
+  <!-- Add comment -->
+  <form class="mt-3 space-y-2" @submit.prevent="submitComment">
+    <textarea
+      v-model="commentForm.body"
+      rows="3"
+      class="w-full rounded border px-3 py-2 text-sm"
+      placeholder="Write a comment..."
+    />
+    <div v-if="commentForm.errors.body" class="text-sm text-red-600">
+      {{ commentForm.errors.body }}
+    </div>
+
+    <div class="flex justify-end">
+      <button
+        type="submit"
+        class="cursor-pointer rounded bg-black px-3 py-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="commentForm.processing || !commentForm.body.trim()"
+      >
+        Post
+      </button>
+    </div>
+  </form>
+
+  <!-- List comments -->
+  <div v-if="props.comments?.length" class="mt-4 space-y-3">
+    <div v-for="c in props.comments" :key="c.id" class="rounded-xl border p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-xs text-muted-foreground">
+            <span class="font-medium text-foreground">{{ c.user?.name ?? 'User' }}</span>
+            <span class="mx-1">•</span>
+                <span :title="dayjs(c.created_at).format('YYYY-MM-DD HH:mm')">
+                {{ fromNow(c.created_at) }}
+                </span>
+            </div>
+
+          <div class="mt-2 whitespace-pre-wrap text-sm">
+            {{ c.body }}
+          </div>
+        </div>
+
+        <button
+          v-if="canDeleteComment(c)"
+          type="button"
+          class="cursor-pointer rounded border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+          @click="deleteComment(c.id)"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="mt-3 text-sm text-muted-foreground">
+    No comments yet.
+  </div>
+</div>
+
           </div>
         </div>
       </div>

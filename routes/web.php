@@ -36,6 +36,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/members/store', [MemberController::class, 'store'])->name('members.store');
     Route::post('/projects/{project}/members', [ProjectMemberController::class, 'store'])->name('projects.members.store');
     Route::delete('/projects/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])->name('projects.members.destroy');
+
+    Route::post('/tickets/{ticket}/comments', [TicketCommentController::class, 'store']);
+    Route::delete('/tickets/{ticket}/comments/{comment}', [TicketCommentController::class, 'destroy']);
 });
 
 require __DIR__.'/settings.php';
