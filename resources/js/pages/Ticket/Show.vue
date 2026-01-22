@@ -120,7 +120,7 @@ function deleteComment(commentId: number) {
 }
 
 function canDeleteComment(c: Comment) {
-  return !!authUser?.id && c.user_id === authUser.id;
+  return !!authUser?.id && c.user_id === authUser.id && dayjs().diff(dayjs(c.created_at), "minute") < 5;
 }
 
 </script>

@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketComment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TicketCommentController extends Controller
@@ -25,6 +26,7 @@ class TicketCommentController extends Controller
     {
         abort_unless($comment->ticket_id === $ticket->id, 404);
         abort_unless($comment->user_id === $request->user()->id, 403);
+        abort_unless($comment->created_at->greaterThan(Carbon::now()->subMinutes(5)),403);
 
         $comment->delete();
 

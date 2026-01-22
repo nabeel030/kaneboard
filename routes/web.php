@@ -12,11 +12,8 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::resource('teams', TeamController::class);
     Route::resource('projects', ProjectController::class);
 
     Route::get('kaneboard', [BoardController::class, 'index'])->name('kaneboard.index');
