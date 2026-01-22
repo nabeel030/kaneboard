@@ -2,8 +2,8 @@
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItemType } from '@/types';
-import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import AppearanceMenu from '@/components/AppearanceMenu.vue';
+import NotificationsMenu from '@/components/NotificationsMenu.vue';
 
 withDefaults(
     defineProps<{
@@ -25,6 +25,9 @@ withDefaults(
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
         </div>
-        <AppearanceMenu />
+        <div>
+            <NotificationsMenu class="me-2" />
+            <AppearanceMenu />
+        </div>
     </header>
 </template>

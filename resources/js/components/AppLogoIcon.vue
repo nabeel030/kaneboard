@@ -2,28 +2,48 @@
 import type { HTMLAttributes } from 'vue';
 
 defineOptions({
-    inheritAttrs: false,
+  inheritAttrs: false,
 });
 
 interface Props {
-    className?: HTMLAttributes['class'];
+  className?: HTMLAttributes['class'];
 }
 
 defineProps<Props>();
 </script>
 
 <template>
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 40 42"
-        :class="className"
-        v-bind="$attrs"
-    >
-        <path
-            fill="currentColor"
-            fill-rule="evenodd"
-            clip-rule="evenodd"
-            d="M17.2 5.633 8.6.855 0 5.633v26.51l16.2 9 16.2-9v-8.442l7.6-4.223V9.856l-8.6-4.777-8.6 4.777V18.3l-5.6 3.111V5.633ZM38 18.301l-5.6 3.11v-6.157l5.6-3.11V18.3Zm-1.06-7.856-5.54 3.078-5.54-3.079 5.54-3.078 5.54 3.079ZM24.8 18.3v-6.157l5.6 3.111v6.158L24.8 18.3Zm-1 1.732 5.54 3.078-13.14 7.302-5.54-3.078 13.14-7.3v-.002Zm-16.2 7.89 7.6 4.222V38.3L2 30.966V7.92l5.6 3.111v16.892ZM8.6 9.3 3.06 6.222 8.6 3.143l5.54 3.08L8.6 9.3Zm21.8 15.51-13.2 7.334V38.3l13.2-7.334v-6.156ZM9.6 11.034l5.6-3.11v14.6l-5.6 3.11v-14.6Z"
-        />
-    </svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 64 64"
+    :class="className"
+    v-bind="$attrs"
+    role="img"
+    aria-label="Kaneboard logo"
+  >
+    <!-- Outer rounded tile -->
+    <rect x="6" y="6" width="52" height="52" rx="14" fill="currentColor" opacity="0.12" />
+    <rect x="10" y="10" width="44" height="44" rx="12" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.55" />
+
+    <!-- Kanban columns -->
+    <g fill="currentColor" opacity="0.9">
+      <rect x="18" y="20" width="8" height="26" rx="4" />
+      <rect x="28" y="16" width="8" height="30" rx="4" />
+      <rect x="38" y="24" width="8" height="22" rx="4" />
+    </g>
+
+    <!-- Small cards inside columns (cutouts using lower opacity) -->
+    <g fill="currentColor" opacity="0.35">
+      <rect x="19.8" y="24" width="4.4" height="4.4" rx="2.2" />
+      <rect x="29.8" y="20" width="4.4" height="4.4" rx="2.2" />
+      <rect x="39.8" y="28" width="4.4" height="4.4" rx="2.2" />
+    </g>
+
+    <!-- Subtle "K" mark -->
+    <path
+      d="M18.5 49V35.2h3.1v5.2l4.6-5.2h3.8l-5.2 5.7 5.6 8.1h-3.7l-4-6.2-1.1 1.2V49h-3.1Z"
+      fill="currentColor"
+      opacity="0.95"
+    />
+  </svg>
 </template>

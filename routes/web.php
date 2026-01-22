@@ -36,6 +36,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/tickets/{ticket}/comments', [TicketCommentController::class, 'store']);
     Route::delete('/tickets/{ticket}/comments/{comment}', [TicketCommentController::class, 'destroy']);
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
 });
 
 require __DIR__.'/settings.php';
