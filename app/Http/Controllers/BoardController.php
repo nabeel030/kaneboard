@@ -101,12 +101,18 @@ class BoardController extends Controller
                 if (!in_array($status, Ticket::STATUSES, true)) continue;
 
                 foreach ($ticketIds as $index => $ticketId) {
-                    Ticket::where('id', $ticketId)
+                    $ticket = Ticket::query()
+                        ->where('id', $ticketId)
                         ->where('project_id', $project->id)
-                        ->update([
-                            'status' => $status,
-                            'position' => $index,
-                        ]);
+                        ->first();
+
+                    if (!$ticket) continue;
+
+                    if ($ticket->status !== $status || (int)$ticket->position !== (int)$index) {
+                        $ticket->status = $status;
+                        $ticket->position = $index;
+                        $ticket->save();
+                    }
                 }
             }
         });
