@@ -59,7 +59,11 @@ class TicketController extends Controller
             ]);
         }
 
-        return back();
+        if($ticket) {
+            return back()->with('success', 'Ticket created successfully.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
     }
 
     public function show(Ticket $ticket)
@@ -115,16 +119,24 @@ class TicketController extends Controller
 
         $ticket->assigned_to = $data['assigned_to'] ?? null;
 
-        $ticket->save();
+        $updated = $ticket->save();
 
-        return back();
+        if($updated) {
+            return back()->with('success', 'Ticket updated successfully.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
     }
 
     public function destroy(Request $request, Ticket $ticket)
     {
         $this->authorize('delete', $ticket);
-        $ticket->delete();
-        return back();
+        $deleted = $ticket->delete();
+        if($deleted) {
+            return back()->with('success', 'Ticket deleted successfully.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
     }
 
 }

@@ -13,7 +13,7 @@ class MemberController extends Controller
         $me = $request->user();
         $members = User::query()
             ->where('id', '!=', $me->id)
-            ->orderBy('name')
+            ->orderByDesc('created_at')
             ->get(['id', 'name', 'email', 'created_at']);
 
         return inertia('Members/Index', [
@@ -42,8 +42,10 @@ class MemberController extends Controller
 
         if($user) {
             SendWelcomeEmailJob::dispatch($user, $request->password, auth()->user());
+
+            return back()->with('success', 'Member created successfully.');
         }
 
-        return back();
+        return back()->with('error', 'Something went wrong.');
     }
 }

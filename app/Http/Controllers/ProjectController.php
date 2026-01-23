@@ -59,7 +59,11 @@ class ProjectController extends Controller
             $request->user()->id => ['role' => 'owner'],
         ]);
 
-        return redirect()->route('projects.show', $project);
+        if($project) {
+            return back()->with('success', 'Project created successfully.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
     }
 
     public function show(Request $request, Project $project)
@@ -107,20 +111,29 @@ class ProjectController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $project->update([
+        $updated = $project->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
         ]);
 
-        return redirect()->route('projects.show', $project);
+        if($updated) {
+            return back()->with('success', 'Project updated successfully.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
+
     }
 
     public function destroy(Request $request, Project $project)
     {
         $this->authorize('delete', $project);
 
-        $project->delete();
+        $deleted = $project->delete();
 
-        return redirect()->route('projects.index');
+        if($deleted) {
+            return redirect()->route('projects.index')->with('success', 'Project deleted successfully.');
+        }
+
+        return redirect()->route('projects.index')->with('error', 'Something went wrong.');
     }
 }

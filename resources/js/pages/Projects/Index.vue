@@ -6,6 +6,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import projectRoutes from '@/routes/projects';
 import { type BreadcrumbItem } from '@/types';
+import { useToast } from '@/stores/toast';
+const toast = useToast();
 
 type Owner = { id: number; name: string; email?: string };
 
@@ -60,6 +62,9 @@ function submitCreate() {
   createForm.post(projectRoutes.index().url, {
     preserveScroll: true,
     onSuccess: () => closeCreate(),
+    onError: () => {
+      toast.error('Please fix the errors and try again.');
+    },
   });
 }
 
@@ -82,6 +87,9 @@ function submitEdit() {
   editForm.put(projectRoutes.update(ui.editingId).url, {
     preserveScroll: true,
     onSuccess: () => closeEdit(),
+    onError: () => {
+      toast.error('Please fix the errors and try again.');
+    },
   });
 }
 </script>
