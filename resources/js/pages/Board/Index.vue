@@ -364,7 +364,10 @@ function goToTicketDetails() {
         <div class="absolute inset-0 bg-black/40 cursor-pointer" @click="closeModal" />
 
         <transition name="pop">
-          <div class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl">
+            <div
+                v-if="state.modalOpen"
+                class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl"
+            >
             <div class="flex items-start justify-between">
               <div>
                 <div class="text-lg font-semibold">Add Ticket</div>
@@ -434,7 +437,10 @@ function goToTicketDetails() {
         <div class="absolute inset-0 bg-black/40 cursor-pointer" @click="closeEditModal" />
 
         <transition name="pop">
-          <div class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl">
+            <div
+                v-if="editState.open"
+                class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl"
+            >
             <div class="flex items-start justify-between">
               <div>
                 <div class="text-lg font-semibold">Edit Ticket</div>
