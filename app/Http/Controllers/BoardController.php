@@ -117,6 +117,6 @@ class BoardController extends Controller
             }
         });
 
-        return back();
+        return back()->with('success', 'Ticket status changed successfully.');
     }
 }

@@ -38,7 +38,7 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
-        return to_route('profile.edit');
+        return redirect()->route('profile.edit')->with('success', 'Profile updated successfully.');
     }
 
     /**
@@ -50,7 +50,9 @@ class ProfileController extends Controller
 
         Auth::logout();
 
-        $user->delete();
+        if($user->delete()) {
+            return redirect()->route('/')->with('success', 'Profile deleted successfully.');
+        }
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
