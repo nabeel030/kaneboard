@@ -280,7 +280,7 @@ const fileErrors = computed(() => {
                 Create a project first, then come back to Kaneboard.
             </div>
 
-            <div v-else class="grid gap-4"
+            <div v-else class="grid gap-4 overflow-y-auto"
                 :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(260px, 1fr))` }">
                 <div v-for="status in statuses" :key="status" :class="[
                     'relative overflow-hidden rounded-xl border border-sidebar-border/70 ring-1',
@@ -307,7 +307,7 @@ const fileErrors = computed(() => {
                     </div>
 
                     <draggable v-model="state.columns[status]" item-key="id" group="tickets"
-                        class="min-h-[220px] space-y-2 p-3" @end="saveOrder">
+                        class="min-h-[220px] max-h-[70vh] overflow-y-auto space-y-2 p-3" @end="saveOrder">
                         <template #item="{ element }">
                             <button type="button" class="
                     cursor-pointer
