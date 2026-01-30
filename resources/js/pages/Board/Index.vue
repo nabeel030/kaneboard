@@ -21,6 +21,8 @@ type Ticket = {
     position: number;
     created_by: number;
     assigned_to?: number | null;
+    deadline?: string | null;
+    priority?: string;
 };
 type Member = { id: number; name: string; email: string };
 
@@ -129,6 +131,8 @@ const form = useForm({
     status: 'backlog',
     assigned_to: null as number | null,
     files: [] as File[],
+    deadline: null as string | null,
+    priority: 'low',
 });
 
 function openAddModal(status: string) {
@@ -193,6 +197,8 @@ const editForm = useForm({
     description: '',
     status: 'backlog',
     assigned_to: null as number | null,
+    deadline: null as string | null,
+    priority: 'low',
 });
 
 function openEditModal(ticket: Ticket) {
@@ -204,6 +210,8 @@ function openEditModal(ticket: Ticket) {
     editForm.description = ticket.description ?? '';
     editForm.status = ticket.status;
     editForm.assigned_to = ticket.assigned_to ?? null;
+    editForm.deadline = ticket.deadline ?? null;
+    editForm.priority = ticket.priority ?? 'low';
 
     editState.open = true;
 }
@@ -254,6 +262,18 @@ const fileErrors = computed(() => {
         .map(([, v]) => String(v));
 });
 
+function priorityClasses(priority?: string) {
+  switch (priority) {
+    case 'high':
+      return 'bg-red-100 text-red-700 border-red-300';
+    case 'medium':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
+    case 'low':
+    default:
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+  }
+}
+
 </script>
 
 <template>
@@ -281,7 +301,7 @@ const fileErrors = computed(() => {
             </div>
 
             <div v-else class="grid gap-4 overflow-y-auto"
-                :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(260px, 1fr))` }">
+                :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(360px, 1fr))` }">
                 <div v-for="status in statuses" :key="status" :class="[
                     'relative overflow-hidden rounded-xl border border-sidebar-border/70 ring-1',
                     themeFor(status).ring,
@@ -325,20 +345,37 @@ const fileErrors = computed(() => {
                     dark:hover:bg-zinc-900
                   " @click="openEditModal(element)">
 
-                                <div class="font-medium">{{ element.title }}</div>
+                                <div class="font-medium flex items-center justify-between">
+                                    <span>{{ element.title }}</span>
+                                    <span class="text-xs text-muted-foreground">
+                                        #{{ element.id }}
+                                    </span>
+                                </div>
 
                                 <div v-if="element.description" class="mt-1 text-sm text-muted-foreground">
                                     {{ element.description }}
                                 </div>
-
-                                <div class="mt-2 flex items-center justify-between">
-                                    <span class="text-xs text-muted-foreground">
-                                        #{{ element.id }}
+                                <div class="mt-4 flex items-center justify-between">
+                                    <span
+                                        class="rounded-full border px-2 py-0.5 text-xs border-zinc-300 dark:bg-zinc-900">
+                                        {{ element.assignee?.name ?? 'Not Assigned' }}
                                     </span>
-
-                                    <span v-if="element.assigned_to"
-                                        class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                                        Assigned
+                                    <span
+                                        v-if="element.deadline"
+                                        class="rounded-full border px-2 py-0.5 text-xs font-medium"
+                                        :class="
+                                            element.is_overdue
+                                            ? 'bg-red-100 text-red-700 border-red-300'
+                                            : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200'
+                                        "
+                                        >
+                                        {{ element.deadline }}
+                                    </span>
+                                    <span
+                                        class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
+                                        :class="priorityClasses(element.priority)"
+                                        >
+                                        {{ element.priority ?? 'low' }}
                                     </span>
                                 </div>
                             </button>
@@ -397,6 +434,28 @@ const fileErrors = computed(() => {
                                 </select>
                                 <div v-if="form.errors.assigned_to" class="mt-1 text-sm text-red-600">
                                     {{ form.errors.assigned_to }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm">Deadline</label>
+                                <input
+                                    v-model="form.deadline"
+                                    type="date"
+                                    class="mt-1 w-full rounded border px-3 py-2"
+                                />
+                                <div v-if="form.errors.deadline" class="mt-1 text-sm text-red-600">
+                                    {{ form.errors.deadline }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm">Priority</label>
+                                <select v-model="form.priority" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <div v-if="form.errors.priority" class="mt-1 text-sm text-red-600">
+                                    {{ form.errors.priority }}
                                 </div>
                             </div>
 
@@ -511,6 +570,28 @@ const fileErrors = computed(() => {
                                 </select>
                                 <div v-if="editForm.errors.assigned_to" class="mt-1 text-sm text-red-600">
                                     {{ editForm.errors.assigned_to }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm">Deadline</label>
+                                <input
+                                    v-model="editForm.deadline"
+                                    type="date"
+                                    class="mt-1 w-full rounded border px-3 py-2"
+                                />
+                                <div v-if="editForm.errors.deadline" class="mt-1 text-sm text-red-600">
+                                    {{ editForm.errors.deadline }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-sm">Priority</label>
+                                <select v-model="editForm.priority" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <div v-if="editForm.errors.priority" class="mt-1 text-sm text-red-600">
+                                    {{ editForm.errors.priority }}
                                 </div>
                             </div>
 

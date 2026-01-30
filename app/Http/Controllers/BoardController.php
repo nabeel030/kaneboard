@@ -29,10 +29,11 @@ class BoardController extends Controller
 
         if ($selectedProject) {
             $tickets = Ticket::query()
+                ->with('assignee:id,name,email')
                 ->where('project_id', $selectedProject->id)
                 ->orderBy('status')
                 ->orderBy('position')
-                ->get(['id', 'title', 'description', 'status', 'position', 'created_by', 'assigned_to']);
+                ->get(['id', 'title', 'description', 'status', 'position', 'created_by', 'assigned_to', 'deadline', 'priority']);
 
             foreach ($tickets as $t) {
                 $columns[$t->status][] = $t;

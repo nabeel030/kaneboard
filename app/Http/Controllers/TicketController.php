@@ -19,9 +19,15 @@ class TicketController extends Controller
             'assigned_to' => ['nullable','exists:users,id'],
             'files' => ['nullable', 'array'],
             'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf,zip','max:10240'],
+            'deadline' => ['nullable', 'date'],
+            'priority' => ['nullable', 'string'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
+
+        if (!empty($data['priority'])) {
+            abort_unless(in_array($data['priority'], Ticket::PRIORITIES, true), 422);
+        }
 
         $nextPos = (int) $project->tickets()
             ->where('status', $data['status'])
@@ -41,7 +47,9 @@ class TicketController extends Controller
             'status' => $data['status'],
             'position' => $nextPos + 1,
             'created_by' => $request->user()->id,
-            'assigned_to' => $data['assigned_to'] ?? null
+            'assigned_to' => $data['assigned_to'] ?? null,
+            'deadline' => $data['deadline'] ?? null,
+            'priority' => $data['priority'] ?? 'low',
         ]);
 
         $files = $request->file('files', []);
@@ -91,9 +99,15 @@ class TicketController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', 'string'],
             'assigned_to' => ['nullable','exists:users,id'],
+            'deadline' => ['nullable', 'date'],
+            'priority' => ['nullable', 'string'],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
+
+        if (!empty($data['priority'])) {
+            abort_unless(in_array($data['priority'], Ticket::PRIORITIES, true), 422);
+        }
 
         // If status changes, put it at the end of the new column
         if ($ticket->status !== $data['status']) {
@@ -119,6 +133,8 @@ class TicketController extends Controller
 
         $ticket->assigned_to = $data['assigned_to'] ?? null;
 
+        $ticket->deadline = $data['deadline'] ?? $ticket->deadline;
+        $ticket->priority = $data['priority'] ?? $ticket->priority;
         $updated = $ticket->save();
 
         if($updated) {
