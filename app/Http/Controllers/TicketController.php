@@ -19,7 +19,7 @@ class TicketController extends Controller
             'assigned_to' => ['nullable','exists:users,id'],
             'files' => ['nullable', 'array'],
             'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf,zip','max:10240'],
-            'deadline' => ['nullable', 'date'],
+            'deadline' => ['nullable', 'date', 'after_or_equal:today'],
             'priority' => ['nullable', 'string'],
         ]);
 

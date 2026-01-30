@@ -24,7 +24,7 @@ class Ticket extends Model
     ];
 
     protected $casts = [
-    'deadline' => 'date:d-m-Y',
+        'deadline' => 'date:Y-m-d',
     ];
 
     public function project()

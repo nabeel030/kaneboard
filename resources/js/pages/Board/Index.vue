@@ -274,6 +274,11 @@ function priorityClasses(priority?: string) {
   }
 }
 
+function formatDeadline(deadline?: string | null) {
+  if (!deadline) return '';
+  return deadline.split('T')[0];
+}
+
 </script>
 
 <template>
@@ -369,7 +374,7 @@ function priorityClasses(priority?: string) {
                                             : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200'
                                         "
                                         >
-                                        {{ element.deadline }}
+                                        {{ formatDeadline(element.deadline) }}
                                     </span>
                                     <span
                                         class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
