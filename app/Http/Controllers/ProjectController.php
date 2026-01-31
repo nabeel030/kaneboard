@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Services\ProjectHealthService;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
@@ -46,12 +47,20 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'start_date' => ['nullable','date'],            
+            'end_date' => ['nullable','date','after_or_equal:start_date'],
+            'baseline_start_date' => ['nullable','date'],
+            'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
         ]);
 
         $project = Project::create([
             'owner_id' => $request->user()->id,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'start_date' => $data['start_date'] ?? null,            
+            'end_date' => $data['end_date'] ?? null,
+            'baseline_start_date' => $data['baseline_start_date'] ?? null,
+            'baseline_end_date' => $data['baseline_end_date'] ?? null,
         ]);
 
         // Make sure owner can access via pivot too (optional but handy)
@@ -80,8 +89,11 @@ class ProjectController extends Controller
         ->orderBy('name')
         ->get(['id','name','email']);
 
+        $projectHealthService = new ProjectHealthService();
+        $projectHealth = $projectHealthService->calculate($project);
+
         return inertia('Projects/Show', [
-            'project' => $project->only(['id', 'owner_id', 'name', 'description']),
+            'project' => $project->only(['id', 'owner_id', 'name', 'description', 'start_date','end_date','baseline_start_date','baseline_end_date']),
             'owner' => $project->owner?->only(['id', 'name', 'email']),
             'members' => $project->members->map(fn ($u) => $u->only(['id', 'name', 'email'])),
             'allMembers' => $allMembers,
@@ -90,6 +102,7 @@ class ProjectController extends Controller
                 'delete' => $request->user()->can('delete', $project),
                 'manageMembers' => $request->user()->can('manageMembers', $project),
             ],
+            'projectHealth' => $projectHealth
         ]);
     }
 
@@ -98,7 +111,10 @@ class ProjectController extends Controller
         $this->authorize('update', $project);
 
         return inertia('Projects/Edit', [
-            'project' => $project->only(['id', 'owner_id', 'name', 'description']),
+            'project' => $project->only([
+                    'id', 'owner_id', 'name', 'description', 'start_date',
+                    'end_date', 'baseline_start_date', 'baseline_end_date'
+                ]),
         ]);
     }
 
@@ -109,11 +125,19 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'start_date' => ['nullable','date'],            
+            'end_date' => ['nullable','date','after_or_equal:start_date'],
+            'baseline_start_date' => ['nullable','date'],
+            'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
         ]);
 
         $updated = $project->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'start_date' => $data['start_date'] ?? null,            
+            'end_date' => $data['end_date'] ?? null,
+            'baseline_start_date' => $data['baseline_start_date'] ?? null,
+            'baseline_end_date' => $data['baseline_end_date'] ?? null,
         ]);
 
         if($updated) {

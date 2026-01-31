@@ -18,6 +18,11 @@ type Project = {
   description?: string | null;
   owner?: Owner | null;
   is_owner?: boolean;
+
+  start_date?: string | null;
+  end_date?: string | null;
+  baseline_start_date?: string | null;
+  baseline_end_date?: string | null;
 };
 
 const props = defineProps<{ projects: Project[] }>();
@@ -31,16 +36,25 @@ const ui = reactive({
   createOpen: false,
   editOpen: false,
   editingId: null as number | null,
+  createUseBaselineSameAsPlan: false,
 });
 
 const createForm = useForm({
   name: '',
   description: '',
+  start_date: '',
+  end_date: '',
+  baseline_start_date: '',
+  baseline_end_date: '',
 });
 
 const editForm = useForm({
   name: '',
   description: '',
+  start_date: '',
+  end_date: '',
+  baseline_start_date: '',
+  baseline_end_date: '',
 });
 
 const editingProject = computed(() => {
@@ -51,6 +65,20 @@ const editingProject = computed(() => {
 function openCreate() {
   createForm.reset();
   createForm.clearErrors();
+
+  ui.createUseBaselineSameAsPlan = false;
+  const today = new Date();
+  const end = new Date();
+  end.setDate(end.getDate() + 14);
+
+  const toISO = (d: Date) => d.toISOString().slice(0, 10);
+
+  createForm.start_date = toISO(today);
+  createForm.end_date = toISO(end);
+
+  createForm.baseline_start_date = createForm.start_date;
+  createForm.baseline_end_date = createForm.end_date;
+
   ui.createOpen = true;
 }
 
@@ -59,12 +87,15 @@ function closeCreate() {
 }
 
 function submitCreate() {
+  if (ui.createUseBaselineSameAsPlan) {
+    createForm.baseline_start_date = createForm.start_date;
+    createForm.baseline_end_date = createForm.end_date;
+  }
+
   createForm.post(projectRoutes.index().url, {
     preserveScroll: true,
     onSuccess: () => closeCreate(),
-    onError: () => {
-      toast.error('Please fix the errors and try again.');
-    },
+    onError: () => toast.error('Please fix the errors and try again.'),
   });
 }
 
@@ -73,6 +104,11 @@ function openEdit(p: Project) {
   editForm.clearErrors();
   editForm.name = p.name;
   editForm.description = p.description ?? '';
+  editForm.start_date = p.start_date ?? '';
+  editForm.end_date = p.end_date ?? '';
+  editForm.baseline_start_date = p.baseline_start_date ?? '';
+  editForm.baseline_end_date = p.baseline_end_date ?? '';
+
   ui.editOpen = true;
 }
 
@@ -87,10 +123,29 @@ function submitEdit() {
   editForm.put(projectRoutes.update(ui.editingId).url, {
     preserveScroll: true,
     onSuccess: () => closeEdit(),
-    onError: () => {
-      toast.error('Please fix the errors and try again.');
-    },
+    onError: () => toast.error('Please fix the errors and try again.'),
   });
+}
+
+const canEditProject = (p: Project) => p.is_owner !== false;
+
+const isInvalidDateRange = (start: string, end: string) => {
+  if (!start || !end) return false;
+  return new Date(end).getTime() < new Date(start).getTime();
+};
+
+const createDateRangeInvalid = computed(() =>
+  isInvalidDateRange(createForm.start_date, createForm.end_date)
+);
+
+const editDateRangeInvalid = computed(() =>
+  isInvalidDateRange(editForm.start_date, editForm.end_date)
+);
+
+function rebaselineToPlan() {
+  // One-click: set baseline = current plan (enterprise re-baseline)
+  editForm.baseline_start_date = editForm.start_date;
+  editForm.baseline_end_date = editForm.end_date;
 }
 </script>
 
@@ -140,12 +195,19 @@ function submitEdit() {
             {{ p.description }}
           </div>
 
+          <div v-if="p.start_date || p.end_date" class="mt-2 text-sm text-muted-foreground">
+            Plan:
+            <span class="font-medium text-foreground">{{ p.start_date ?? '—' }}</span>
+            →
+            <span class="font-medium text-foreground">{{ p.end_date ?? '—' }}</span>
+          </div>
+
           <div class="mt-3 flex items-center justify-end gap-2">
             <button
               type="button"
               class="cursor-pointer rounded border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
               @click="openEdit(p)"
-              :disabled="p.is_owner === false"
+              :disabled="!canEditProject(p)"
               title="Only the owner can edit"
             >
               Edit
@@ -178,7 +240,9 @@ function submitEdit() {
             <div class="flex items-start justify-between gap-3">
               <div>
                 <div class="text-lg font-semibold">New Project</div>
-                <div class="mt-1 text-sm text-muted-foreground">Create a project with name and description.</div>
+                <div class="mt-1 text-sm text-muted-foreground">
+                  Create a project with schedule dates to enable Project Health.
+                </div>
               </div>
 
               <button
@@ -217,6 +281,78 @@ function submitEdit() {
                 </div>
               </div>
 
+              <div class="rounded-lg border p-3">
+                <div class="text-sm font-medium">Schedule</div>
+                <div class="mt-2 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label class="text-sm">Start date</label>
+                    <input
+                      v-model="createForm.start_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="createForm.errors.start_date" class="mt-1 text-sm text-red-600">
+                      {{ createForm.errors.start_date }}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="text-sm">End date</label>
+                    <input
+                      v-model="createForm.end_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="createForm.errors.end_date" class="mt-1 text-sm text-red-600">
+                      {{ createForm.errors.end_date }}
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="createDateRangeInvalid" class="mt-2 text-sm text-red-600">
+                  End date must be on or after start date.
+                </div>
+
+                <!-- Baseline -->
+                <div class="mt-3 flex items-center gap-2">
+                  <input
+                    id="baselineSame"
+                    type="checkbox"
+                    v-model="ui.createUseBaselineSameAsPlan"
+                    class="h-4 w-4"
+                  />
+                  <label for="baselineSame" class="text-sm text-muted-foreground">
+                    Use same dates as baseline (recommended)
+                  </label>
+                </div>
+
+                <div v-if="!ui.createUseBaselineSameAsPlan" class="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label class="text-sm">Baseline start</label>
+                    <input
+                      v-model="createForm.baseline_start_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="createForm.errors.baseline_start_date" class="mt-1 text-sm text-red-600">
+                      {{ createForm.errors.baseline_start_date }}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="text-sm">Baseline end</label>
+                    <input
+                      v-model="createForm.baseline_end_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="createForm.errors.baseline_end_date" class="mt-1 text-sm text-red-600">
+                      {{ createForm.errors.baseline_end_date }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="mt-4 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -230,7 +366,7 @@ function submitEdit() {
                 <button
                   type="submit"
                   class="cursor-pointer rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="createForm.processing"
+                  :disabled="createForm.processing || createDateRangeInvalid"
                 >
                   <span v-if="createForm.processing">Creating…</span>
                   <span v-else>Create</span>
@@ -290,6 +426,69 @@ function submitEdit() {
                 </div>
               </div>
 
+              <div class="rounded-lg border p-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-sm font-medium">Schedule</div>
+
+                  <button
+                    type="button"
+                    class="cursor-pointer rounded border px-3 py-1 text-xs hover:bg-muted/40"
+                    @click="rebaselineToPlan"
+                    title="Set baseline dates to match current plan"
+                  >
+                    Rebaseline to plan
+                  </button>
+                </div>
+
+                <div class="mt-2 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label class="text-sm">Start date</label>
+                    <input v-model="editForm.start_date" type="date" class="mt-1 w-full rounded border px-3 py-2" />
+                    <div v-if="editForm.errors.start_date" class="mt-1 text-sm text-red-600">
+                      {{ editForm.errors.start_date }}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="text-sm">End date</label>
+                    <input v-model="editForm.end_date" type="date" class="mt-1 w-full rounded border px-3 py-2" />
+                    <div v-if="editForm.errors.end_date" class="mt-1 text-sm text-red-600">
+                      {{ editForm.errors.end_date }}
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="editDateRangeInvalid" class="mt-2 text-sm text-red-600">
+                  End date must be on or after start date.
+                </div>
+
+                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label class="text-sm">Baseline start</label>
+                    <input
+                      v-model="editForm.baseline_start_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="editForm.errors.baseline_start_date" class="mt-1 text-sm text-red-600">
+                      {{ editForm.errors.baseline_start_date }}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="text-sm">Baseline end</label>
+                    <input
+                      v-model="editForm.baseline_end_date"
+                      type="date"
+                      class="mt-1 w-full rounded border px-3 py-2"
+                    />
+                    <div v-if="editForm.errors.baseline_end_date" class="mt-1 text-sm text-red-600">
+                      {{ editForm.errors.baseline_end_date }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="mt-4 flex items-center justify-end gap-2">
                 <button
                   type="button"
@@ -303,7 +502,7 @@ function submitEdit() {
                 <button
                   type="submit"
                   class="cursor-pointer rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="editForm.processing"
+                  :disabled="editForm.processing || editDateRangeInvalid"
                 >
                   <span v-if="editForm.processing">Saving…</span>
                   <span v-else>Save</span>
@@ -318,9 +517,23 @@ function submitEdit() {
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 120ms ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.pop-enter-active { transition: transform 140ms ease, opacity 140ms ease; }
-.pop-enter-from { transform: scale(0.98); opacity: 0; }
-.pop-leave-to { transform: scale(0.98); opacity: 0; }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 120ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.pop-enter-active {
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+.pop-enter-from {
+  transform: scale(0.98);
+  opacity: 0;
+}
+.pop-leave-to {
+  transform: scale(0.98);
+  opacity: 0;
+}
 </style>
