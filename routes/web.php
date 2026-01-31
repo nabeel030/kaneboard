@@ -16,8 +16,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('projects', ProjectController::class);
 
-    Route::get('kaneboard', [BoardController::class, 'index'])->name('kaneboard.index');
-    Route::get('/projects/{project}/kaneboard', [BoardController::class, 'show'])->name('projects.kaneboard');
+    Route::get('ticket-board', [BoardController::class, 'index'])->name('kaneboard.index');
     Route::post('/projects/{project}/kaneboard/reorder', [BoardController::class, 'reorder'])->name('kaneboard.reorder');
 
 

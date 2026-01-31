@@ -49,6 +49,9 @@ type Ticket = {
 
   attachments?: Attachment[];
   project?: { id: number; name: string } | null;
+  priority?: string | 'low';
+  is_overdue: number;
+  deadline?: string | null;
 };
 
 const props = defineProps<{
@@ -86,7 +89,7 @@ function formatBytes(bytes?: number | null) {
 
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Dashboard', href: dashboard().url },
-  { title: 'Kaneboard', href: '/kaneboard' },
+  { title: 'Ticket Board', href: '/ticket-board' },
   { title: `Ticket #${props.ticket.id}`, href: `/tickets/${props.ticket.id}` },
 ];
 
@@ -123,6 +126,24 @@ function canDeleteComment(c: Comment) {
   return !!authUser?.id && c.user_id === authUser.id && dayjs().diff(dayjs(c.created_at), "minute") < 5;
 }
 
+function priorityClasses(priority?: string) {
+  switch (priority) {
+    case 'high':
+      return 'bg-red-100 text-red-700 border-red-300';
+    case 'medium':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
+    case 'low':
+    default:
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+  }
+}
+
+function formatDeadline(deadline?: string | null) {
+  if (!deadline) return '';
+  return deadline.split('T')[0];
+}
+
+
 </script>
 
 <template>
@@ -154,12 +175,31 @@ function canDeleteComment(c: Comment) {
               <span v-if="ticket.project" class="rounded-full border px-2 py-0.5">
                 Project: {{ ticket.project.name }}
               </span>
+
+              <span
+                  class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
+                  :class="priorityClasses(ticket.priority)"
+                  >
+                  Priority: {{ ticket.priority ?? 'low' }}
+              </span>
+
+              <span
+                  v-if="ticket.deadline"
+                  class="rounded-full border px-2 py-0.5 text-xs font-medium"
+                  :class="
+                      ticket.is_overdue
+                      ? 'bg-red-100 text-red-700 border-red-300'
+                      : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200'
+                  "
+                  >
+                  Deadline: {{ formatDeadline(ticket.deadline) }}
+              </span>
             </div>
           </div>
 
           <div class="flex gap-2">
             <Link
-              href="/kaneboard"
+              href="/ticket-board"
               class="cursor-pointer rounded border px-3 py-2 text-sm hover:bg-muted/40"
             >
               Back to board

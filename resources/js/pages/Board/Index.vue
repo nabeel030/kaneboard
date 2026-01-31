@@ -113,7 +113,7 @@ function themeFor(status: string) {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard().url },
-    { title: 'Kaneboard', href: '/kaneboard' },
+    { title: 'Ticket Board', href: '/ticket-board' },
 ];
 
 watch(
@@ -146,11 +146,12 @@ function openAddModal(status: string) {
 
 function closeModal() {
     state.modalOpen = false;
+    form.reset();
 }
 
 function changeProject() {
     if (!state.selectedProjectId) return;
-    router.get('/kaneboard', { project: state.selectedProjectId }, { preserveScroll: true });
+    router.get('/ticket-board', { project: state.selectedProjectId }, { preserveScroll: true });
 }
 
 function saveOrder() {
@@ -283,12 +284,12 @@ function formatDeadline(deadline?: string | null) {
 
 <template>
 
-    <Head title="Kaneboard" />
+    <Head title="Ticket Board" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
             <div class="flex items-center justify-between gap-4">
-                <div class="text-2xl font-semibold">Kaneboard</div>
+                <div class="text-2xl font-semibold">Ticket Board</div>
 
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-muted-foreground">Project</span>
@@ -305,7 +306,7 @@ function formatDeadline(deadline?: string | null) {
                 Create a project first, then come back to Kaneboard.
             </div>
 
-            <div v-else class="grid gap-4 overflow-y-auto"
+            <div v-else class="grid gap-4 overflow-y-auto h-full"
                 :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(360px, 1fr))` }">
                 <div v-for="status in statuses" :key="status" :class="[
                     'relative overflow-hidden rounded-xl border border-sidebar-border/70 ring-1',
@@ -397,7 +398,7 @@ function formatDeadline(deadline?: string | null) {
 
                 <transition name="pop">
                     <div v-if="state.modalOpen"
-                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] overflow-y-auto">
+                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col">
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-lg font-semibold">Add Ticket</div>
@@ -409,7 +410,7 @@ function formatDeadline(deadline?: string | null) {
                             <button class="cursor-pointer rounded p-2 hover:bg-muted/40" @click="closeModal">✕</button>
                         </div>
 
-                        <form class="mt-4 space-y-3" @submit.prevent="submitTicket">
+                        <form class="mt-4 space-y-3 overflow-y-auto flex-1 pr-1" @submit.prevent="submitTicket">
                             <div>
                                 <label class="text-sm">Title</label>
                                 <input v-model="form.title" class="mt-1 w-full rounded border px-3 py-2"
@@ -489,7 +490,7 @@ function formatDeadline(deadline?: string | null) {
                                 </div>
                             </div>
 
-                            <div class="flex justify-end gap-2">
+                            <div class="flex justify-end gap-2 sticky bottom-0 bg-background pt-3">
                                 <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm"
                                     @click="closeModal" :disabled="form.processing">
                                     Cancel
@@ -516,8 +517,8 @@ function formatDeadline(deadline?: string | null) {
 
                 <transition name="pop">
                     <div v-if="editState.open"
-                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] overflow-y-auto">
-                        <div class="flex items-start justify-between">
+                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col">
+                    <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-lg font-semibold">Edit Ticket</div>
 
@@ -530,7 +531,7 @@ function formatDeadline(deadline?: string | null) {
                                 @click="closeEditModal">✕</button>
                         </div>
 
-                        <form class="mt-4 space-y-3" @submit.prevent="submitEdit">
+                        <form class="mt-4 space-y-3 overflow-y-auto flex-1 pr-1" @submit.prevent="submitEdit">
                             <div>
                                 <label class="text-sm">Title</label>
                                 <input v-model="editForm.title" class="mt-1 w-full rounded border px-3 py-2"
@@ -600,7 +601,7 @@ function formatDeadline(deadline?: string | null) {
                                 </div>
                             </div>
 
-                            <div class="flex justify-between">
+                            <div class="flex justify-end gap-2 sticky bottom-0 bg-background pt-3">
                                 <button v-if="canEditSelectedTicket" type="button"
                                     class="cursor-pointer rounded border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                                     @click="destroyTicket" :disabled="editForm.processing">

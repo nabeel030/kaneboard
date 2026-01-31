@@ -63,30 +63,6 @@ class BoardController extends Controller
         ]);
     }
 
-    public function show(Project $project)
-    {
-        $this->authorize('view', $project);
-
-        $tickets = $project->tickets()
-            ->orderBy('status')
-            ->orderBy('position')
-            ->get();
-
-        $columns = collect(Ticket::STATUSES)
-            ->mapWithKeys(fn($s) => [$s => []])
-            ->toArray();
-
-        foreach ($tickets as $t) {
-            $columns[$t->status][] = $t;
-        }
-
-        return inertia('Board/Show', [
-            'project' => $project->only(['id', 'name', 'description', 'team_id']),
-            'columns' => $columns,
-            'statuses' => Ticket::STATUSES,
-        ]);
-    }
-
     public function reorder(Request $request, Project $project)
     {
         $this->authorize('view', $project);

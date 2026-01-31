@@ -25,7 +25,7 @@ const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
     { title: 'Members', href: members.index(), icon: Users },
     { title: 'Projects', href: projects.index(), icon: FolderKanban },
-    { title: 'Kaneboard', href: '/kaneboard', icon: Kanban },
+    { title: 'Ticket Board', href: '/ticket-board', icon: Kanban },
 ];
 
 const footerNavItems: NavItem[] = [
