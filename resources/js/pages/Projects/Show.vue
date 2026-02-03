@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
 
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -246,6 +246,13 @@ const initials = (name?: string) => {
           </div>
 
           <div class="flex items-center gap-2">
+            <Link
+                :href="'/ticket-board?project=' + project.id"
+                class="cursor-pointer rounded-xl border px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 shadow-sm
+                        dark:border-slate-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                >
+                Ticket Board
+            </Link>
             <button
               v-if="can.delete"
               @click="destroyProject"

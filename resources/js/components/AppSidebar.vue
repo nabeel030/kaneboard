@@ -18,6 +18,7 @@ import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import projects from '@/routes/projects';
 import members from '@/routes/members';
+import board from '@/routes/kaneboard';
 
 import AppLogo from './AppLogo.vue';
 
@@ -25,7 +26,7 @@ const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
     { title: 'Members', href: members.index(), icon: Users },
     { title: 'Projects', href: projects.index(), icon: FolderKanban },
-    { title: 'Ticket Board', href: '/ticket-board', icon: Kanban },
+    { title: 'Ticket Board', href: board.index(), icon: Kanban },
 ];
 
 const footerNavItems: NavItem[] = [
