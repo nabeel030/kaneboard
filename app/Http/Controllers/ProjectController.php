@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\ProjectHealthService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
@@ -18,7 +19,7 @@ class ProjectController extends Controller
             ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId))
             ->with('owner:id,name,email')
             ->latest()
-            ->get(['id', 'owner_id', 'name', 'description', 'created_at']);
+            ->get(['id', 'owner_id', 'name', 'description', 'created_at', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']);
 
         return inertia('Projects/Index', [
             'projects' => $projects->map(function ($p) use ($userId) {
@@ -30,6 +31,10 @@ class ProjectController extends Controller
                     'created_at' => $p->created_at,
                     'owner' => $p->owner?->only(['id', 'name', 'email']),
                     'is_owner' => $p->owner_id === $userId,
+                    'start_date' => Carbon::parse($p->start_date)->format('Y-m-d'),
+                    'end_date' => Carbon::parse($p->end_date)->format('Y-m-d'),
+                    'baseline_start_date' => Carbon::parse($p->baseline_start_date)->format('Y-m-d'),
+                    'baseline_end_date' => Carbon::parse($p->baseline_end_date)->format('Y-m-d'),
                 ];
             }),
         ]);
@@ -47,7 +52,7 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'start_date' => ['nullable','date'],            
+            'start_date' => ['nullable','date'],
             'end_date' => ['nullable','date','after_or_equal:start_date'],
             'baseline_start_date' => ['nullable','date'],
             'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
@@ -57,7 +62,7 @@ class ProjectController extends Controller
             'owner_id' => $request->user()->id,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
-            'start_date' => $data['start_date'] ?? null,            
+            'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
             'baseline_start_date' => $data['baseline_start_date'] ?? null,
             'baseline_end_date' => $data['baseline_end_date'] ?? null,
@@ -125,7 +130,7 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'start_date' => ['nullable','date'],            
+            'start_date' => ['nullable','date'],
             'end_date' => ['nullable','date','after_or_equal:start_date'],
             'baseline_start_date' => ['nullable','date'],
             'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
@@ -134,7 +139,7 @@ class ProjectController extends Controller
         $updated = $project->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
-            'start_date' => $data['start_date'] ?? null,            
+            'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
             'baseline_start_date' => $data['baseline_start_date'] ?? null,
             'baseline_end_date' => $data['baseline_end_date'] ?? null,
