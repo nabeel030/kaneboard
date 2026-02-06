@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TicketType;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,7 +14,7 @@ class Ticket extends Model
         'project_id', 'title', 'description',
         'status', 'position',
         'created_by', 'assigned_to',
-        'deadline', 'priority',
+        'deadline', 'priority', 'type',
         'estimate', 'started_at', 'completed_at',
     ];
 
@@ -33,6 +34,7 @@ class Ticket extends Model
         'deadline' => 'date:Y-m-d',
         'completed_at' => 'datetime',
         'estimate' => 'int',
+        'type' => TicketType::class,
     ];
 
     protected static function booted()
@@ -52,12 +54,6 @@ class Ticket extends Model
             // If moved into "done", set completed_at
             if (in_array($ticket->status, self::DONE_STATUSES, true)) {
                 $ticket->completed_at = $ticket->completed_at ?: $now;
-            } else {
-                // Optional policy:
-                // If ticket moved OUT of done, you can null completed_at OR keep it.
-                // Enterprise analytics usually keeps it.
-                // Uncomment if you prefer nulling:
-                // $ticket->completed_at = null;
             }
         });
     }

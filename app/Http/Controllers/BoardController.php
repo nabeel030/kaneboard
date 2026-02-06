@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TicketType;
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\User;
@@ -33,7 +34,7 @@ class BoardController extends Controller
                 ->where('project_id', $selectedProject->id)
                 ->orderBy('status')
                 ->orderBy('position')
-                ->get(['id', 'title', 'description', 'status', 'position', 'created_by', 'assigned_to', 'deadline', 'priority']);
+                ->get(['id', 'title', 'description', 'status', 'position', 'created_by', 'assigned_to', 'deadline', 'priority', 'type']);
 
             foreach ($tickets as $t) {
                 $columns[$t->status][] = $t;
@@ -53,13 +54,16 @@ class BoardController extends Controller
                 ->get(['id','name','email']);
         }
 
-
         return inertia('Board/Index', [
             'projects' => $projects,
             'members' => $members,
             'selectedProjectId' => $selectedProject?->id,
             'columns' => $columns,
             'statuses' => Ticket::STATUSES,
+            'ticketTypes' => collect(TicketType::cases())->map(fn ($type) => [
+                'value' => $type->value,
+                'label' => $type->label(),
+            ]),
         ]);
     }
 

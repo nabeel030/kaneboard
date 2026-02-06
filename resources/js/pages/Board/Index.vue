@@ -28,6 +28,12 @@ type Ticket = {
     // (Optional, if your backend includes these on the board payload)
     assignee?: { id: number; name: string } | null;
     is_overdue?: boolean;
+    type: string;
+};
+
+type TicketTypes = {
+    value: string;
+    label: string;
 };
 
 const props = defineProps<{
@@ -36,6 +42,7 @@ const props = defineProps<{
     columns: Record<string, Ticket[]>;
     statuses: string[];
     members: Member[];
+    ticketTypes: TicketTypes[];
 }>();
 
 const state = reactive({
@@ -137,6 +144,7 @@ const form = useForm({
     files: [] as File[],
     deadline: null as string | null,
     priority: 'low',
+    type: 'feature',
 });
 
 function openAddModal(status: string) {
@@ -204,6 +212,7 @@ const editForm = useForm({
     assigned_to: null as number | null,
     deadline: null as string | null,
     priority: 'low',
+    type: 'feature',
 });
 
 function openEditModal(ticket: Ticket) {
@@ -217,6 +226,7 @@ function openEditModal(ticket: Ticket) {
     editForm.assigned_to = ticket.assigned_to ?? null;
     editForm.deadline = ticket.deadline ?? null;
     editForm.priority = ticket.priority ?? 'low';
+    editForm.type = ticket.type ?? 'feature';
 
     editState.open = true;
 }
@@ -271,8 +281,10 @@ const fileErrors = computed(() => {
 function priorityClasses(priority?: string) {
     switch (priority) {
         case 'high':
+        case 'bug':
             return 'bg-red-100 text-red-700 border-red-300';
         case 'medium':
+        case 'improvement':
             return 'bg-orange-100 text-orange-800 border-orange-300';
         case 'low':
         default:
@@ -296,6 +308,7 @@ const filters = reactive({
     assignee: 'any' as 'any' | 'unassigned' | string, // string is member id
     mineOnly: false,
     priority: 'any' as 'any' | 'low' | 'medium' | 'high',
+    type: 'any' as 'any' | string,
     due: 'any' as DuePreset,
     sort: 'manual' as 'manual' | 'deadline_asc' | 'deadline_desc' | 'priority_desc' | 'id_desc' | 'title_asc',
 });
@@ -307,7 +320,8 @@ const hasActiveFilters = computed(() => {
         filters.mineOnly ||
         filters.priority !== 'any' ||
         filters.due !== 'any' ||
-        filters.sort !== 'manual'
+        filters.sort !== 'manual' ||
+        filters.type !== 'any'
     );
 });
 
@@ -318,6 +332,7 @@ function clearFilters() {
     filters.priority = 'any';
     filters.due = 'any';
     filters.sort = 'manual';
+    filters.type = 'any';
 }
 
 function normalize(s: string) {
@@ -330,6 +345,11 @@ function ticketMatches(ticket: Ticket) {
     if (q) {
         const hay = `${ticket.title ?? ''} ${ticket.description ?? ''} #${ticket.id ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
+    }
+
+    // Type filter
+    if (filters.type !== 'any') {
+        if (ticket.type !== filters.type) return false;
     }
 
     // Mine only
@@ -523,6 +543,14 @@ function activeFilterChips() {
         });
     }
 
+    if (filters.type !== 'any') {
+        chips.push({
+            key: 'type',
+            label: `Ticket Type: ${filters.type}`,
+            onClear: () => (filters.type = 'any'),
+        });
+    }
+
     return chips;
 }
 
@@ -602,6 +630,19 @@ const activeChips = computed(() => activeFilterChips());
                                 <option value="low">Low</option>
                                 <option value="medium">Medium</option>
                                 <option value="high">High</option>
+                            </select>
+                        </div>
+
+                        <div class="min-w-[160px]">
+                            <label class="text-xs font-medium text-muted-foreground">Ticket Type</label>
+                            <select
+                                v-model="filters.type"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
+                            >
+                                <option value="any">Any</option>
+                                <option v-for="t in props.ticketTypes" :key="t.value" :value="t.value">
+                                    {{ t.label }}
+                                </option>
                             </select>
                         </div>
 
@@ -753,9 +794,19 @@ const activeChips = computed(() => activeFilterChips());
                             "
                             @click="openEditModal(element)"
                         >
-                            <div class="font-medium flex items-center justify-between">
-                                <span>{{ element.title }}</span>
-                                <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
+                            <div class="font-medium flex justify-between">
+                                    <span>
+                                        <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
+                                        {{ element.title }}
+                                    </span>
+                                <div>
+                                    <span
+                                        class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
+                                        :class="priorityClasses(element.type)"
+                                    >
+                                        {{ element.type ?? 'feature' }}
+                                    </span>
+                                </div>
                             </div>
 
                             <div v-if="element.description" class="mt-1 text-sm text-muted-foreground">
@@ -818,8 +869,18 @@ const activeChips = computed(() => activeFilterChips());
                                 @click="openEditModal(element)"
                             >
                                 <div class="font-medium flex items-center justify-between">
-                                    <span>{{ element.title }}</span>
-                                    <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
+                                    <span>
+                                        <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
+                                        {{ element.title }}
+                                    </span>
+                                    <div>
+                                        <span
+                                            class="rounded-full border px-2 py-0.5 text-xs font-medium  capitalize"
+                                            :class="priorityClasses(element.type)"
+                                        >
+                                            {{ element.type ?? 'feature' }}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div v-if="element.description" class="mt-1 text-sm text-muted-foreground">
@@ -930,6 +991,23 @@ const activeChips = computed(() => activeFilterChips());
                                 </select>
                                 <div v-if="form.errors.priority" class="mt-1 text-sm text-red-600">
                                     {{ form.errors.priority }}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-sm">Type</label>
+                                <select v-model="form.type" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                    <option disabled value="">Select type</option>
+                                    <option
+                                        v-for="type in ticketTypes"
+                                        :key="type.value"
+                                        :value="type.value"
+                                    >
+                                        {{ type.label }}
+                                    </option>
+                                </select>
+                                <div v-if="form.errors.type" class="mt-1 text-sm text-red-600">
+                                    {{ form.errors.type }}
                                 </div>
                             </div>
 
@@ -1081,6 +1159,23 @@ const activeChips = computed(() => activeFilterChips());
                                 </select>
                                 <div v-if="editForm.errors.priority" class="mt-1 text-sm text-red-600">
                                     {{ editForm.errors.priority }}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-sm">Type</label>
+                                <select v-model="editForm.type" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                    <option disabled value="">Select type</option>
+                                    <option
+                                        v-for="type in ticketTypes"
+                                        :key="type.value"
+                                        :value="type.value"
+                                    >
+                                        {{ type.label }}
+                                    </option>
+                                </select>
+                                <div v-if="editForm.errors.type" class="mt-1 text-sm text-red-600">
+                                    {{ editForm.errors.type }}
                                 </div>
                             </div>
 

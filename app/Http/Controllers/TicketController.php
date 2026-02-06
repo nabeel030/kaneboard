@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TicketType;
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Enum;
 
 class TicketController extends Controller
 {
@@ -21,6 +23,7 @@ class TicketController extends Controller
             'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf,zip','max:10240'],
             'deadline' => ['nullable', 'date', 'after_or_equal:today'],
             'priority' => ['nullable', 'string'],
+            'type' => ['required', new Enum(TicketType::class)],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -50,6 +53,7 @@ class TicketController extends Controller
             'assigned_to' => $data['assigned_to'] ?? null,
             'deadline' => $data['deadline'] ?? null,
             'priority' => $data['priority'] ?? 'low',
+            'type' => $request->type,
         ]);
 
         $files = $request->file('files', []);
@@ -101,6 +105,7 @@ class TicketController extends Controller
             'assigned_to' => ['nullable','exists:users,id'],
             'deadline' => ['nullable', 'date'],
             'priority' => ['nullable', 'string'],
+            'type' => ['required', new Enum(TicketType::class)],
         ]);
 
         abort_unless(in_array($data['status'], Ticket::STATUSES, true), 422);
@@ -135,6 +140,7 @@ class TicketController extends Controller
 
         $ticket->deadline = $data['deadline'] ?? $ticket->deadline;
         $ticket->priority = $data['priority'] ?? $ticket->priority;
+        $ticket->type = $data['type'] ?? $ticket->type;
         $updated = $ticket->save();
 
         if($updated) {
