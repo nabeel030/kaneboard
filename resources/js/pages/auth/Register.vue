@@ -15,7 +15,6 @@ import { store } from '@/routes/register';
 <template>
     <AuthBase
         title="Create an account"
-        description="Enter your details below to create your account"
     >
         <Head title="Register" />
 
@@ -23,9 +22,9 @@ import { store } from '@/routes/register';
             v-bind="store.form()"
             :reset-on-success="['password', 'password_confirmation']"
             v-slot="{ errors, processing }"
-            class="flex flex-col gap-6"
+            class="flex flex-col gap-2"
         >
-            <div class="grid gap-6">
+            <div class="grid gap-5">
                 <div class="grid gap-2">
                     <Label for="name">Name</Label>
                     <Input
