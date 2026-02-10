@@ -48,6 +48,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('start', 'start')->name('start');
             Route::post('pause', 'pause')->name('pause');
             Route::post('stop',  'stop')->name('stop');
+            Route::post('resume', 'start')->name('resume');
             Route::get('status', 'status')->name('status');
         }); 
 });

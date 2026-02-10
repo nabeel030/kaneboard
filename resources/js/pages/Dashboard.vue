@@ -492,9 +492,6 @@ const donutPct = computed(() => {
 
     <div>
       <div class="text-xs text-muted-foreground">Actual progress</div>
-      <div class="mt-1 text-lg font-semibold">
-        {{ pct(p.actual_progress) }}%
-      </div>
     </div>
   </div>
 </div>

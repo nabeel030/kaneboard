@@ -113,7 +113,7 @@ class TicketTimerController extends Controller
         $seconds = $end->diffInSeconds($start, false); 
         $seconds = max(0, $seconds);
         $seconds = (int) $seconds; 
-
+        
         $log->ended_at = $end;
         $log->duration_seconds = $seconds;
         $log->save();
