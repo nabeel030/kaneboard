@@ -5,21 +5,36 @@ namespace App\Models;
 use App\Enums\TicketType;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class Ticket extends Model
 {
-    protected $appends = ['is_overdue'];
+    protected $appends = ['is_overdue', 'tracked_seconds', 'tracked_hours'];
 
     protected $fillable = [
-        'project_id', 'title', 'description',
-        'status', 'position',
-        'created_by', 'assigned_to',
-        'deadline', 'priority', 'type',
-        'estimate', 'started_at', 'completed_at',
+        'project_id',
+        'title',
+        'description',
+        'status',
+        'position',
+        'created_by',
+        'assigned_to',
+        'deadline',
+        'priority',
+        'type',
+        'estimate',
+        'started_at',
+        'completed_at',
     ];
 
     public const STATUSES = [
-        'backlog', 'todo', 'in_progress', 'done', 'tested', 'completed',
+        'backlog',
+        'todo',
+        'in_progress',
+        'done',
+        'tested',
+        'completed',
     ];
 
 
@@ -27,7 +42,9 @@ class Ticket extends Model
     public const DONE_STATUSES = ['done', 'tested', 'completed'];
 
     public const PRIORITIES = [
-        'low', 'medium', 'high'
+        'low',
+        'medium',
+        'high'
     ];
 
     protected $casts = [
@@ -99,12 +116,34 @@ class Ticket extends Model
             return false;
         }
 
-        // Do not mark completed tickets as overdue
         if (in_array($this->status, self::DONE_STATUSES, true)) {
             return false;
         }
 
         return $this->deadline->startOfDay()->isPast();
     }
-}
 
+    public function timeLogs(): HasMany
+    {
+        return $this->hasMany(TicketTimeLog::class);
+    }
+
+    public function getTrackedSecondsAttribute(): int
+    {
+        $ended = (int) $this->timeLogs()
+            ->whereNotNull('ended_at')
+            ->sum(DB::raw('COALESCE(duration_seconds, TIMESTAMPDIFF(SECOND, started_at, ended_at))'));
+
+        $running = $this->timeLogs()
+            ->whereNull('ended_at')
+            ->get()
+            ->sum(fn($l) => now()->diffInSeconds($l->started_at));
+
+        return $ended + $running;
+    }
+
+    public function getTrackedHoursAttribute(): float
+    {
+        return round($this->tracked_seconds / 3600, 2);
+    }
+}

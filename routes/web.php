@@ -39,6 +39,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+
+
+    Route::controller(TicketTimerController::class)
+        ->prefix('tickets/{ticket}/timer')
+        ->name('tickets.timer.')
+        ->group(function () {
+            Route::post('start', 'start')->name('start');
+            Route::post('pause', 'pause')->name('pause');
+            Route::post('stop',  'stop')->name('stop');
+            Route::get('status', 'status')->name('status');
+        }); 
 });
 
 require __DIR__.'/settings.php';
