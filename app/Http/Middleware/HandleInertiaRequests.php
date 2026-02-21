@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\RunningTimerService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -46,6 +47,12 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error'   => fn () => $request->session()->get('error'),
             ],
+            'runningTimer' => function () use ($request) {
+                $user = $request->user();
+                if (!$user) return null;
+
+                return app(RunningTimerService::class)->forUser($user->id);
+            },
         ];
     }
 }

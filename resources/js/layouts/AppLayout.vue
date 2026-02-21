@@ -5,6 +5,7 @@ import { watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import ToastHost from '@/components/ToastHost.vue';
 import { useToast } from '@/stores/toast';
+import FloatingTimer from '@/components/FloatingTimer.vue';
 
 
 interface Props {
@@ -34,5 +35,6 @@ watch(
     <AppLayout :breadcrumbs="breadcrumbs">
         <ToastHost />
         <slot />
+        <FloatingTimer />
     </AppLayout>
 </template>

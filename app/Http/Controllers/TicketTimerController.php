@@ -18,6 +18,8 @@ class TicketTimerController extends Controller
         // authorize if you have policies
         // $this->authorize('update', $ticket->project);
 
+        $this->ensureTrackable($ticket);
+
         $userId = $request->user()->id;
 
         DB::transaction(function () use ($userId, $ticket) {
@@ -56,6 +58,7 @@ class TicketTimerController extends Controller
     public function pause(Request $request, Ticket $ticket)
     {
         // $this->authorize('update', $ticket->project);
+        $this->ensureTrackable($ticket);
 
         $userId = $request->user()->id;
 
@@ -75,12 +78,19 @@ class TicketTimerController extends Controller
         return back()->with('success', 'Timer paused.');
     }
 
+    public function resume(Request $request, Ticket $ticket)
+    {
+        $this->ensureTrackable($ticket);
+        return $this->start($request, $ticket);
+    }
+
     /**
      * Stop is same as pause in this model (ends session).
      * You can keep both for UI clarity.
      */
     public function stop(Request $request, Ticket $ticket)
     {
+        $this->ensureTrackable($ticket);
         return $this->pause($request, $ticket);
     }
 
@@ -90,6 +100,7 @@ class TicketTimerController extends Controller
     public function status(Request $request, Ticket $ticket)
     {
         $userId = $request->user()->id;
+        $this->ensureTrackable($ticket);
 
         $running = TicketTimeLog::query()
             ->where('ticket_id', $ticket->id)
@@ -110,12 +121,19 @@ class TicketTimerController extends Controller
         $end = now();
         $start = $log->started_at;
 
-        $seconds = $end->diffInSeconds($start, false); 
-        $seconds = max(0, $seconds);
-        $seconds = (int) $seconds; 
-        
-        $log->ended_at = $end;
-        $log->duration_seconds = $seconds;
-        $log->save();
+        // ✅ always positive
+        $seconds = $start->diffInSeconds($end);
+
+        $log->forceFill([
+            'ended_at' => $end,
+            'duration_seconds' => $seconds,
+        ])->save();
+    }
+
+    private function ensureTrackable(Ticket $ticket): void
+    {
+        if ($ticket->status !== 'in_progress') {
+            abort(403, 'Timer is only allowed when ticket is In progress.');
+        }
     }
 }

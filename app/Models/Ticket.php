@@ -63,14 +63,36 @@ class Ticket extends Model
 
             $now = Carbon::now();
 
+            $oldStatus = $ticket->getOriginal('status');
+            $newStatus = $ticket->status;
+
+            $wasDoneLike = in_array($oldStatus, self::DONE_STATUSES, true);
+            $isDoneLike  = in_array($newStatus, self::DONE_STATUSES, true);
+
             // If moved into "started" and started_at is empty, set it once
-            if (in_array($ticket->status, self::STARTED_STATUSES, true) && !$ticket->started_at) {
+            if (in_array($newStatus, self::STARTED_STATUSES, true) && !$ticket->started_at) {
                 $ticket->started_at = $now;
             }
 
-            // If moved into "done", set completed_at
-            if (in_array($ticket->status, self::DONE_STATUSES, true)) {
+            // If moved into done-like, set completed_at AND stop any running timers
+            if ($isDoneLike) {
                 $ticket->completed_at = $ticket->completed_at ?: $now;
+
+                // ✅ Auto-stop running logs (important)
+                // Ensure relation exists in model: timeLogs()
+                $ticket->timeLogs()
+                    ->whereNull('ended_at')
+                    ->get()
+                    ->each(function ($log) use ($now) {
+                        $log->ended_at = $now;
+                        $log->duration_seconds = $log->started_at->diffInSeconds($now);
+                        $log->save();
+                    });
+            }
+
+            // ✅ OPTIONAL (recommended): If reopened from done-like -> not done-like, clear completed_at
+            if ($wasDoneLike && !$isDoneLike) {
+                $ticket->completed_at = null;
             }
         });
     }

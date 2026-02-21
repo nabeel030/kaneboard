@@ -6,7 +6,11 @@ use App\Enums\TicketType;
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
+use App\Models\TicketTimeLog;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Enum;
 
@@ -18,9 +22,9 @@ class TicketController extends Controller
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', 'string'],
-            'assigned_to' => ['nullable','exists:users,id'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
             'files' => ['nullable', 'array'],
-            'files.*' => ['file','mimes:png,jpg,jpeg,webp,gif,pdf,zip','max:10240'],
+            'files.*' => ['file', 'mimes:png,jpg,jpeg,webp,gif,pdf,zip', 'max:10240'],
             'deadline' => ['nullable', 'date', 'after_or_equal:today'],
             'priority' => ['nullable', 'string'],
             'type' => ['required', new Enum(TicketType::class)],
@@ -71,26 +75,32 @@ class TicketController extends Controller
             ]);
         }
 
-        if($ticket) {
+        if ($ticket) {
             return back()->with('success', 'Ticket created successfully.');
         }
 
         return back()->with('error', 'Something went wrong.');
     }
 
-    public function show(Ticket $ticket)
+    public function show(Request $request, Ticket $ticket)
     {
+        $userId = $request->user()->id;
+
         $ticket->load([
             'creator:id,name,email',
             'assignee:id,name,email',
             'project:id,name',
             'attachments',
             'comments.user:id,name,email',
+            'timeLogs'
         ]);
+
+        $timer = $this->buildTimerState($ticket->id, $userId);
 
         return inertia('Ticket/Show', [
             'ticket' => $ticket,
-            'comments' => $ticket->comments()->with('user:id,name,email')->latest()->get()
+            'comments' => $ticket->comments,
+            'timer' => $timer,
         ]);
     }
 
@@ -102,7 +112,7 @@ class TicketController extends Controller
             'title' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', 'string'],
-            'assigned_to' => ['nullable','exists:users,id'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
             'deadline' => ['nullable', 'date'],
             'priority' => ['nullable', 'string'],
             'type' => ['required', new Enum(TicketType::class)],
@@ -143,7 +153,7 @@ class TicketController extends Controller
         $ticket->type = $data['type'] ?? $ticket->type;
         $updated = $ticket->save();
 
-        if($updated) {
+        if ($updated) {
             return back()->with('success', 'Ticket updated successfully.');
         }
 
@@ -154,11 +164,46 @@ class TicketController extends Controller
     {
         $this->authorize('delete', $ticket);
         $deleted = $ticket->delete();
-        if($deleted) {
+        if ($deleted) {
             return back()->with('success', 'Ticket deleted successfully.');
         }
 
         return back()->with('error', 'Something went wrong.');
     }
 
+    private function buildTimerState(int $ticketId, int $userId): array
+    {
+        $endedSeconds = (int) TicketTimeLog::query()
+            ->where('ticket_id', $ticketId)
+            ->where('user_id', $userId)
+            ->whereNotNull('ended_at')
+            ->sum(DB::raw('COALESCE(duration_seconds, TIMESTAMPDIFF(SECOND, started_at, ended_at))'));
+
+        $runningLog = TicketTimeLog::query()
+            ->where('ticket_id', $ticketId)
+            ->where('user_id', $userId)
+            ->whereNull('ended_at')
+            ->latest('started_at')
+            ->first();
+
+        $runningSeconds = 0;
+
+        if ($runningLog) {
+            $startedAt = $runningLog->started_at;
+
+            if ($startedAt instanceof CarbonInterface) {
+                $runningSeconds = $startedAt->diffInSeconds(now(), true);
+            } else {
+                $runningSeconds = now()->diffInSeconds(Carbon::parse($runningLog->getRawOriginal('started_at')), true);
+            }
+
+            $runningSeconds = max(0, (int) $runningSeconds);
+        }
+
+        return [
+            'running' => (bool) $runningLog,
+            'elapsed_seconds' => $endedSeconds + $runningSeconds,
+            'started_at' => $runningLog?->started_at?->toISOString(),
+        ];
+    }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, usePage, useForm, router } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
@@ -37,9 +37,8 @@ type Attachment = {
 
 type TimerState = {
   running: boolean;
-  elapsed_seconds: number;      // total tracked seconds so far
-  started_at?: string | null;   // current running segment start (if running)
-  last_stopped_at?: string | null;
+  elapsed_seconds: number;      // ✅ TOTAL seconds up to NOW (server-truth)
+  started_at?: string | null;   // optional (only for badge/extra info)
 };
 
 type Ticket = {
@@ -61,7 +60,6 @@ type Ticket = {
   is_overdue: number;
   deadline?: string | null;
 
-  // optional fields you mentioned exist in DB
   started_at?: string | null;
   completed_at?: string | null;
   estimate?: number | null;
@@ -71,15 +69,6 @@ const props = defineProps<{
   ticket: Ticket;
   statuses?: string[];
   comments: Comment[];
-
-  /**
-   * ✅ Recommended: pass from controller
-   * timer: {
-   *   running: bool,
-   *   elapsed_seconds: int,
-   *   started_at: string|null
-   * }
-   */
   timer?: TimerState | null;
 }>();
 
@@ -118,14 +107,14 @@ const breadcrumbs: BreadcrumbItem[] = [
 function isImage(mime?: string | null) {
   return !!mime && mime.startsWith('image/');
 }
-
 function isPdf(mime?: string | null) {
   return mime === 'application/pdf';
 }
 
-const commentForm = useForm({
-  body: '',
-});
+/* ---------------------------
+   ✅ Comments
+---------------------------- */
+const commentForm = useForm({ body: '' });
 
 function submitComment() {
   if (!props.ticket?.id) return;
@@ -166,19 +155,40 @@ function formatDeadline(deadline?: string | null) {
 }
 
 /* ---------------------------
-   ✅ TIMER UI (Front-end)
+   ✅ TIMER UI (Server-truth)
+   - Server returns elapsed_seconds INCLUDING running time up to NOW
+   - Frontend only increments locally while running
 ---------------------------- */
+
+const isInProgress = computed(() => props.ticket.status === 'in_progress');
+const isDoneLike = computed(() => ['done', 'tested', 'completed'].includes(props.ticket.status));
+
 const timerRunning = ref<boolean>(props.timer?.running ?? false);
-const baseElapsedSeconds = ref<number>(props.timer?.elapsed_seconds ?? 0); // saved/persisted total
-const runningStartedAt = ref<string | null>(props.timer?.started_at ?? null); // when current segment started
-const tickNow = ref<number>(Date.now());
+const elapsedSeconds = ref<number>(props.timer?.elapsed_seconds ?? 0);
+
+// optional, not used in math anymore — just in case you want to show tooltip later
+const runningStartedAt = ref<string | null>(props.timer?.started_at ?? null);
+
 let tickInterval: number | null = null;
+let lastTickMs: number | null = null;
 
 function startTicking() {
   stopTicking();
+  lastTickMs = Date.now();
+
   tickInterval = window.setInterval(() => {
-    tickNow.value = Date.now();
-  }, 1000);
+    if (!timerRunning.value) return;
+
+    const nowMs = Date.now();
+    // const deltaSec = Math.floor((nowMs - (lastTickMs ?? nowMs)) / 1000);
+    const raw = Math.floor((nowMs - (lastTickMs ?? nowMs)) / 1000);
+    const deltaSec = Math.max(0, Math.min(raw, 2)); // cap catch-up to 2s
+
+    if (deltaSec > 0) {
+      elapsedSeconds.value += deltaSec; // ✅ increment from server total
+      lastTickMs = nowMs;
+    }
+  }, 250);
 }
 
 function stopTicking() {
@@ -186,19 +196,45 @@ function stopTicking() {
     window.clearInterval(tickInterval);
     tickInterval = null;
   }
+  lastTickMs = null;
 }
 
-const liveElapsedSeconds = computed(() => {
-  if (!timerRunning.value || !runningStartedAt.value) return baseElapsedSeconds.value;
+function syncFromServer(next?: TimerState | null) {
+  timerRunning.value = !!next?.running;
+  elapsedSeconds.value = next?.elapsed_seconds ?? 0;
+  runningStartedAt.value = next?.started_at ?? null;
 
-  const start = dayjs(runningStartedAt.value);
-  if (!start.isValid()) return baseElapsedSeconds.value;
+  if (timerRunning.value) startTicking();
+  else stopTicking();
+}
 
-  // add running segment seconds on top of base
-  const runningSeconds = Math.max(0, dayjs(tickNow.value).diff(start, 'second'));
-  return baseElapsedSeconds.value + runningSeconds;
+// ✅ Sync whenever Inertia props.timer changes
+watch(
+  () => props.timer,
+  (next) => syncFromServer(next),
+  { immediate: true, deep: true }
+);
+
+let offStart: any = null;
+let offFinish: any = null;
+
+onMounted(() => {
+  offStart = router.on('start', () => {
+    lastTickMs = Date.now();
+  });
+
+  offFinish = router.on('finish', () => {
+    lastTickMs = Date.now();
+  });
+
+  if (timerRunning.value) startTicking();
 });
 
+onBeforeUnmount(() => {
+  stopTicking();
+  offStart?.();
+  offFinish?.();
+});
 function formatHMS(totalSeconds: number) {
   const s = Math.max(0, Math.floor(totalSeconds));
   const hh = Math.floor(s / 3600);
@@ -208,91 +244,40 @@ function formatHMS(totalSeconds: number) {
   return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
 }
 
-const timerLabel = computed(() => formatHMS(liveElapsedSeconds.value));
+const timerLabel = computed(() => formatHMS(elapsedSeconds.value));
 
-const canStart = computed(() => !timerRunning.value);
-const canPause = computed(() => timerRunning.value);
-const canResume = computed(() => !timerRunning.value && baseElapsedSeconds.value > 0);
-const canStop = computed(() => baseElapsedSeconds.value > 0 || timerRunning.value);
+// ✅ Buttons only in in_progress (your requirement)
+const canStart = computed(() => isInProgress.value && !timerRunning.value);
+const canPause = computed(() => isInProgress.value && timerRunning.value);
+const canResume = computed(() => isInProgress.value && !timerRunning.value && elapsedSeconds.value > 0);
+const canStop = computed(() => isInProgress.value && timerRunning.value);
 
-function syncFromServer(next?: TimerState | null) {
-  if (!next) return;
-  timerRunning.value = !!next.running;
-  baseElapsedSeconds.value = next.elapsed_seconds ?? 0;
-  runningStartedAt.value = next.started_at ?? null;
+// ✅ Post without extra reload (Inertia redirect already refreshes once)
+function postTimer(url: string, opts?: { confirmText?: string }) {
+  if (opts?.confirmText && !confirm(opts.confirmText)) return;
 
-  if (timerRunning.value) startTicking();
-  else stopTicking();
+  router.post(url, {}, {
+    preserveScroll: true,
+    preserveState: true,
+  });
 }
 
-// Keep ticking if initially running
-onMounted(() => {
-  if (timerRunning.value) startTicking();
-});
-onBeforeUnmount(() => stopTicking());
-
-/**
- * These actions assume you have backend endpoints.
- * If your backend returns updated timer in Inertia props,
- * just rely on that. Otherwise, you can return JSON and update manually.
- *
- * For now we do a simple POST and expect the page to refresh props (Inertia).
- */
 function timerStart() {
-  router.post(`/tickets/${props.ticket.id}/timer/start`, {}, {
-    preserveScroll: true,
-    onSuccess: () => {
-      // If your controller shares updated props.timer, it will re-render automatically.
-      // If not, you can still “optimistically” set:
-      timerRunning.value = true;
-      runningStartedAt.value = new Date().toISOString();
-      startTicking();
-    },
-  });
+  postTimer(`/tickets/${props.ticket.id}/timer/start`);
 }
 
 function timerPause() {
-  router.post(`/tickets/${props.ticket.id}/timer/pause`, {}, {
-    preserveScroll: true,
-    onSuccess: () => {
-      // Optimistic pause:
-      if (runningStartedAt.value) {
-        const seg = Math.max(0, dayjs().diff(dayjs(runningStartedAt.value), 'second'));
-        baseElapsedSeconds.value += seg;
-      }
-      timerRunning.value = false;
-      runningStartedAt.value = null;
-      stopTicking();
-    },
-  });
+  postTimer(`/tickets/${props.ticket.id}/timer/pause`);
 }
 
+// If you don't have /timer/resume endpoint, map resume -> start
 function timerResume() {
-  router.post(`/tickets/${props.ticket.id}/timer/resume`, {}, {
-    preserveScroll: true,
-    onSuccess: () => {
-      timerRunning.value = true;
-      runningStartedAt.value = new Date().toISOString();
-      startTicking();
-    },
-  });
+  postTimer(`/tickets/${props.ticket.id}/timer/start`);
 }
 
 function timerStop() {
-  if (!confirm('Stop timer? This will finalize the current session.')) return;
-
-  router.post(`/tickets/${props.ticket.id}/timer/stop`, {}, {
-    preserveScroll: true,
-    onSuccess: () => {
-      // Optimistic stop = same as pause, but you can also reset if your backend does
-      if (runningStartedAt.value) {
-        const seg = Math.max(0, dayjs().diff(dayjs(runningStartedAt.value), 'second'));
-        baseElapsedSeconds.value += seg;
-      }
-      timerRunning.value = false;
-      runningStartedAt.value = null;
-      stopTicking();
-    },
+  postTimer(`/tickets/${props.ticket.id}/timer/stop`, {
+    confirmText: 'Stop timer? This will finalize the current session.',
   });
 }
 </script>
@@ -349,71 +334,78 @@ function timerStop() {
 
             <!-- ✅ TIMER STRIP (NEW) -->
             <div class="mt-3 rounded-2xl border bg-background p-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div class="text-sm font-semibold">Time Tracker</div>
-                  <div class="mt-1 flex items-center gap-2">
-                    <span
-                      class="inline-flex items-center rounded-full border px-2 py-1 text-xs"
-                      :class="timerRunning ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50'
-                                          : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-200 dark:border-slate-800'"
-                    >
-                      {{ timerRunning ? 'Running' : 'Paused' }}
-                    </span>
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="text-sm font-semibold">Time Tracker</div>
 
-                    <span class="text-2xl font-semibold tabular-nums">
-                      {{ timerLabel }}
-                    </span>
-                  </div>
+      <div class="mt-1 flex items-center gap-2">
+        <span
+          class="inline-flex items-center rounded-full border px-2 py-1 text-xs"
+          :class="timerRunning ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-200 dark:border-slate-800'"
+        >
+          {{ timerRunning ? 'Running' : 'Paused' }}
+        </span>
 
-                  <div class="mt-1 text-xs text-muted-foreground">
-                    Track work time for this ticket (start, pause, resume, stop).
-                  </div>
-                </div>
+        <span class="text-2xl font-semibold tabular-nums">
+          {{ timerLabel }}
+        </span>
+      </div>
 
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="timerStart"
-                    :disabled="!canStart"
-                    title="Start timer"
-                  >
-                    ▶ Start
-                  </button>
+      <div class="mt-1 text-xs text-muted-foreground">
+        <template v-if="isInProgress">
+          Track work time for this ticket (start, pause, resume).
+        </template>
+        <template v-else-if="isDoneLike">
+          Ticket is finished. Showing total tracked time (read-only).
+        </template>
+        <template v-else>
+          Move ticket to <b>In progress</b> to start tracking time.
+        </template>
+      </div>
+    </div>
 
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="timerPause"
-                    :disabled="!canPause"
-                    title="Pause timer"
-                  >
-                    ⏸ Pause
-                  </button>
+    <!-- ✅ Buttons only when in_progress -->
+    <div v-if="isInProgress" class="flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+        @click="timerStart"
+        :disabled="!canStart"
+      >
+        ▶ Start
+      </button>
 
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="timerResume"
-                    :disabled="!(canResume && !timerRunning)"
-                    title="Resume timer"
-                  >
-                    ↻ Resume
-                  </button>
+      <button
+        type="button"
+        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+        @click="timerPause"
+        :disabled="!canPause"
+      >
+        ⏸ Pause
+      </button>
 
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="timerStop"
-                    :disabled="!canStop"
-                    title="Stop timer"
-                  >
-                    ■ Stop
-                  </button>
-                </div>
-              </div>
-            </div>
+      <button
+        type="button"
+        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+        @click="timerResume"
+        :disabled="!canResume"
+      >
+        ↻ Resume
+      </button>
+
+      <button
+          type="button"
+          class="cursor-pointer rounded-xl border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="timerStop"
+          :disabled="!canStop"
+          title="Stop timer"
+        >
+          ■ Stop
+        </button>
+    </div>
+  </div>
+</div>
             <!-- /TIMER STRIP -->
           </div>
 
