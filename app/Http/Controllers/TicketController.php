@@ -89,10 +89,10 @@ class TicketController extends Controller
         $ticket->load([
             'creator:id,name,email',
             'assignee:id,name,email',
-            'project:id,name',
+            'project:id,name,owner_id',
             'attachments',
             'comments.user:id,name,email',
-            'timeLogs'
+            'timeLogs.user:id,name'
         ]);
 
         $timer = $this->buildTimerState($ticket->id, $userId);
@@ -124,7 +124,6 @@ class TicketController extends Controller
             abort_unless(in_array($data['priority'], Ticket::PRIORITIES, true), 422);
         }
 
-        // If status changes, put it at the end of the new column
         if ($ticket->status !== $data['status']) {
             $maxPos = (int) Ticket::query()
                 ->where('project_id', $ticket->project_id)

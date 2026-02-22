@@ -51,6 +51,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('resume', 'start')->name('resume');
             Route::get('status', 'status')->name('status');
         }); 
+
+    Route::controller(TicketTimeLogController::class)
+        ->prefix('ticket/timelogs')
+        ->name('timelog.')
+        ->group(function () {
+            Route::put('{ticketTimeLog}', 'update');
+            Route::delete('{ticketTimeLog}', 'destroy');
+        }); 
 });
 
 require __DIR__.'/settings.php';

@@ -5,7 +5,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import Select2Multi from '@/components/Select2Multi.vue'; // (not used here but kept if your file expects it)
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -37,8 +36,8 @@ type Attachment = {
 
 type TimerState = {
   running: boolean;
-  elapsed_seconds: number;      // ✅ TOTAL seconds up to NOW (server-truth)
-  started_at?: string | null;   // optional (only for badge/extra info)
+  elapsed_seconds: number;
+  started_at?: string | null;
 };
 
 type Ticket = {
@@ -55,7 +54,7 @@ type Ticket = {
   assigned_to?: number | null;
 
   attachments?: Attachment[];
-  project?: { id: number; name: string } | null;
+  project?: { id: number; name: string; owner_id: number } | null;
   priority?: string | 'low';
   is_overdue: number;
   deadline?: string | null;
@@ -63,6 +62,18 @@ type Ticket = {
   started_at?: string | null;
   completed_at?: string | null;
   estimate?: number | null;
+  time_logs?: TimeLog[];
+};
+
+type TimeLog = {
+  id: number;
+  started_at: string;
+  ended_at?: string | null;
+  duration_seconds?: number | null;
+  user?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 const props = defineProps<{
@@ -111,9 +122,9 @@ function isPdf(mime?: string | null) {
   return mime === 'application/pdf';
 }
 
-/* ---------------------------
-   ✅ Comments
----------------------------- */
+/**
+ * Comments section
+ */
 const commentForm = useForm({ body: '' });
 
 function submitComment() {
@@ -154,11 +165,9 @@ function formatDeadline(deadline?: string | null) {
   return deadline.split('T')[0];
 }
 
-/* ---------------------------
-   ✅ TIMER UI (Server-truth)
-   - Server returns elapsed_seconds INCLUDING running time up to NOW
-   - Frontend only increments locally while running
----------------------------- */
+/**
+  Timer section 
+*/
 
 const isInProgress = computed(() => props.ticket.status === 'in_progress');
 const isDoneLike = computed(() => ['done', 'tested', 'completed'].includes(props.ticket.status));
@@ -166,7 +175,6 @@ const isDoneLike = computed(() => ['done', 'tested', 'completed'].includes(props
 const timerRunning = ref<boolean>(props.timer?.running ?? false);
 const elapsedSeconds = ref<number>(props.timer?.elapsed_seconds ?? 0);
 
-// optional, not used in math anymore — just in case you want to show tooltip later
 const runningStartedAt = ref<string | null>(props.timer?.started_at ?? null);
 
 let tickInterval: number | null = null;
@@ -180,12 +188,11 @@ function startTicking() {
     if (!timerRunning.value) return;
 
     const nowMs = Date.now();
-    // const deltaSec = Math.floor((nowMs - (lastTickMs ?? nowMs)) / 1000);
     const raw = Math.floor((nowMs - (lastTickMs ?? nowMs)) / 1000);
     const deltaSec = Math.max(0, Math.min(raw, 2)); // cap catch-up to 2s
 
     if (deltaSec > 0) {
-      elapsedSeconds.value += deltaSec; // ✅ increment from server total
+      elapsedSeconds.value += deltaSec;
       lastTickMs = nowMs;
     }
   }, 250);
@@ -208,7 +215,6 @@ function syncFromServer(next?: TimerState | null) {
   else stopTicking();
 }
 
-// ✅ Sync whenever Inertia props.timer changes
 watch(
   () => props.timer,
   (next) => syncFromServer(next),
@@ -246,13 +252,11 @@ function formatHMS(totalSeconds: number) {
 
 const timerLabel = computed(() => formatHMS(elapsedSeconds.value));
 
-// ✅ Buttons only in in_progress (your requirement)
 const canStart = computed(() => isInProgress.value && !timerRunning.value);
 const canPause = computed(() => isInProgress.value && timerRunning.value);
 const canResume = computed(() => isInProgress.value && !timerRunning.value && elapsedSeconds.value > 0);
 const canStop = computed(() => isInProgress.value && timerRunning.value);
 
-// ✅ Post without extra reload (Inertia redirect already refreshes once)
 function postTimer(url: string, opts?: { confirmText?: string }) {
   if (opts?.confirmText && !confirm(opts.confirmText)) return;
 
@@ -270,7 +274,6 @@ function timerPause() {
   postTimer(`/tickets/${props.ticket.id}/timer/pause`);
 }
 
-// If you don't have /timer/resume endpoint, map resume -> start
 function timerResume() {
   postTimer(`/tickets/${props.ticket.id}/timer/start`);
 }
@@ -280,9 +283,101 @@ function timerStop() {
     confirmText: 'Stop timer? This will finalize the current session.',
   });
 }
+
+const timeLogs = computed(() => props.ticket.time_logs ?? []);
+const groupedLogs = computed(() => {
+  const logs = props.ticket.time_logs ?? [];
+
+  const groups: Record<string, TimeLog[]> = {};
+
+  logs.forEach(log => {
+    const date = dayjs(log.started_at).format('YYYY-MM-DD');
+
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(log);
+  });
+
+  return groups;
+});
+
+function formatDuration(seconds?: number | null) {
+  const s = Math.max(0, Math.floor(seconds ?? 0));
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+}
+
+function formatDateTime(dt?: string | null) {
+  if (!dt) return '—';
+  return dayjs(dt).format('YYYY-MM-DD HH:mm');
+}
+
+const totalLoggedSeconds = computed(() => {
+  return timeLogs.value.reduce((sum, log) => {
+    if (log.duration_seconds) return sum + log.duration_seconds;
+
+    if (log.started_at && log.ended_at) {
+      return sum + dayjs(log.ended_at).diff(dayjs(log.started_at), 'second');
+    }
+
+    return sum;
+  }, 0);
+});
+
+const editingLogId = ref<number | null>(null);
+const editingSeconds = ref<number>(0);
+
+function startEdit(log: TimeLog) {
+  editingLogId.value = log.id;
+  editingSeconds.value = log.duration_seconds ?? 0;
+}
+
+function cancelEdit() {
+  editingLogId.value = null;
+  editingSeconds.value = 0;
+}
+
+function saveEdit(log: TimeLog) {
+  router.put(
+    `/ticket/timelogs/${log.id}`,
+    {
+      duration_seconds: editingSeconds.value,
+    },
+    {
+      preserveScroll: true,
+      onSuccess: () => cancelEdit(),
+    }
+  );
+}
+
+const isOwner = computed(() => {
+  return page.props.auth?.user?.id === props.ticket?.project?.owner_id; // adjust to your system
+});
+
+function deleteLog(log: TimeLog) {
+  if (!confirm('Delete this session?')) return;
+
+  router.delete(
+    `/ticket/timelogs/${log.id}`,
+    {
+      preserveScroll: true,
+    }
+  );
+}
+
+function timelineWidth(log: TimeLog) {
+  const duration = log.duration_seconds ?? 0;
+  const total = totalLoggedSeconds.value || 1;
+
+  return `${(duration / total) * 100}%`;
+}
+
 </script>
 
 <template>
+
   <Head :title="`Ticket #${ticket.id}`" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
@@ -312,109 +407,84 @@ function timerStop() {
                 Project: {{ ticket.project.name }}
               </span>
 
-              <span
-                class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
-                :class="priorityClasses(ticket.priority)"
-              >
+              <span class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
+                :class="priorityClasses(ticket.priority)">
                 Priority: {{ ticket.priority ?? 'low' }}
               </span>
 
-              <span
-                v-if="ticket.deadline"
-                class="rounded-full border px-2 py-0.5 text-xs font-medium"
-                :class="
-                  ticket.is_overdue
-                    ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-200 dark:border-red-900/50'
-                    : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800'
-                "
-              >
+              <span v-if="ticket.deadline" class="rounded-full border px-2 py-0.5 text-xs font-medium" :class="ticket.is_overdue
+                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-200 dark:border-red-900/50'
+                  : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800'
+                ">
                 Deadline: {{ formatDeadline(ticket.deadline) }}
               </span>
             </div>
 
             <!-- ✅ TIMER STRIP (NEW) -->
             <div class="mt-3 rounded-2xl border bg-background p-4">
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div>
-      <div class="text-sm font-semibold">Time Tracker</div>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div class="text-sm font-semibold">Time Tracker</div>
 
-      <div class="mt-1 flex items-center gap-2">
-        <span
-          class="inline-flex items-center rounded-full border px-2 py-1 text-xs"
-          :class="timerRunning ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-200 dark:border-slate-800'"
-        >
-          {{ timerRunning ? 'Running' : 'Paused' }}
-        </span>
+                  <div class="mt-1 flex items-center gap-2">
+                    <span class="inline-flex items-center rounded-full border px-2 py-1 text-xs"
+                      :class="timerRunning ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/50'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-200 dark:border-slate-800'">
+                      {{ timerRunning ? 'Running' : 'Paused' }}
+                    </span>
 
-        <span class="text-2xl font-semibold tabular-nums">
-          {{ timerLabel }}
-        </span>
-      </div>
+                    <span class="text-2xl font-semibold tabular-nums">
+                      {{ timerLabel }}
+                    </span>
+                  </div>
 
-      <div class="mt-1 text-xs text-muted-foreground">
-        <template v-if="isInProgress">
-          Track work time for this ticket (start, pause, resume).
-        </template>
-        <template v-else-if="isDoneLike">
-          Ticket is finished. Showing total tracked time (read-only).
-        </template>
-        <template v-else>
-          Move ticket to <b>In progress</b> to start tracking time.
-        </template>
-      </div>
-    </div>
+                  <div class="mt-1 text-xs text-muted-foreground">
+                    <template v-if="isInProgress">
+                      Track work time for this ticket (start, pause, resume).
+                    </template>
+                    <template v-else-if="isDoneLike">
+                      Ticket is finished. Showing total tracked time (read-only).
+                    </template>
+                    <template v-else>
+                      Move ticket to <b>In progress</b> to start tracking time.
+                    </template>
+                  </div>
+                </div>
 
-    <!-- ✅ Buttons only when in_progress -->
-    <div v-if="isInProgress" class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-        @click="timerStart"
-        :disabled="!canStart"
-      >
-        ▶ Start
-      </button>
+                <!-- ✅ Buttons only when in_progress -->
+                <div v-if="isInProgress" class="flex flex-wrap gap-2">
+                  <button type="button"
+                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="timerStart" :disabled="!canStart">
+                    ▶ Start
+                  </button>
 
-      <button
-        type="button"
-        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-        @click="timerPause"
-        :disabled="!canPause"
-      >
-        ⏸ Pause
-      </button>
+                  <button type="button"
+                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="timerPause" :disabled="!canPause">
+                    ⏸ Pause
+                  </button>
 
-      <button
-        type="button"
-        class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-        @click="timerResume"
-        :disabled="!canResume"
-      >
-        ↻ Resume
-      </button>
+                  <button type="button"
+                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="timerResume" :disabled="!canResume">
+                    ↻ Resume
+                  </button>
 
-      <button
-          type="button"
-          class="cursor-pointer rounded-xl border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-          @click="timerStop"
-          :disabled="!canStop"
-          title="Stop timer"
-        >
-          ■ Stop
-        </button>
-    </div>
-  </div>
-</div>
+                  <button type="button"
+                    class="cursor-pointer rounded-xl border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="timerStop" :disabled="!canStop" title="Stop timer">
+                    ■ Stop
+                  </button>
+                </div>
+              </div>
+            </div>
             <!-- /TIMER STRIP -->
           </div>
 
           <div class="flex gap-2">
-            <Link
-              href="/ticket-board"
-              class="cursor-pointer rounded border px-3 py-2 text-sm hover:bg-muted/40"
-            >
-              Back to board
+            <Link href="/ticket-board" class="cursor-pointer rounded border px-3 py-2 text-sm hover:bg-muted/40">
+            Back to board
             </Link>
           </div>
         </div>
@@ -437,26 +507,13 @@ function timerStop() {
               <div class="text-sm font-semibold">Attachments</div>
 
               <div v-if="ticket.attachments?.length" class="mt-3 space-y-4">
-                <div
-                  v-for="a in ticket.attachments"
-                  :key="a.id"
-                  class="rounded-xl border p-3"
-                >
+                <div v-for="a in ticket.attachments" :key="a.id" class="rounded-xl border p-3">
                   <!-- Preview -->
                   <div class="overflow-hidden rounded-lg border bg-muted/20">
-                    <img
-                      v-if="isImage(a.mime_type)"
-                      :src="a.path"
-                      :alt="a.original_name"
-                      class="max-h-[420px] w-full object-contain"
-                      loading="lazy"
-                    />
+                    <img v-if="isImage(a.mime_type)" :src="a.path" :alt="a.original_name"
+                      class="max-h-[420px] w-full object-contain" loading="lazy" />
 
-                    <iframe
-                      v-else-if="isPdf(a.mime_type)"
-                      :src="a.path"
-                      class="h-[420px] w-full"
-                    />
+                    <iframe v-else-if="isPdf(a.mime_type)" :src="a.path" class="h-[420px] w-full" />
 
                     <div v-else class="p-4 text-sm text-muted-foreground">
                       No preview available for this file type.
@@ -477,12 +534,8 @@ function timerStop() {
                       </div>
                     </div>
 
-                    <a
-                      :href="a.path"
-                      target="_blank"
-                      rel="noopener"
-                      class="shrink-0 cursor-pointer rounded border px-3 py-2 text-xs hover:bg-muted/40"
-                    >
+                    <a :href="a.path" target="_blank" rel="noopener"
+                      class="shrink-0 cursor-pointer rounded border px-3 py-2 text-xs hover:bg-muted/40">
                       Open / Download
                     </a>
                   </div>
@@ -493,9 +546,96 @@ function timerStop() {
                 No attachments.
               </div>
             </div>
+
+            <div class="mt-6 rounded-2xl border bg-background p-5">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold">Time Logs</div>
+                <div class="text-sm font-medium text-emerald-600">
+                  Total: {{ formatDuration(totalLoggedSeconds) }}
+                </div>
+              </div>
+
+              <div v-if="Object.keys(groupedLogs).length" class="mt-6 space-y-6">
+
+                <div v-for="(logs, date) in groupedLogs" :key="date">
+                  <!-- Date Header -->
+                  <div class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {{ date }}
+                  </div>
+
+                  <div class="space-y-3">
+                    <div v-for="log in logs" :key="log.id" class="rounded-xl border p-4">
+
+                      <div class="flex items-center justify-between gap-3">
+
+                        <!-- LEFT -->
+                        <div class="min-w-0">
+
+                          <div class="text-sm font-medium">
+                            {{ formatDateTime(log.started_at) }}
+                            →
+                            {{ log.ended_at ? formatDateTime(log.ended_at) : 'Running...' }}
+                          </div>
+
+                          <div class="text-xs text-muted-foreground mt-1">
+                            {{ log.user?.name ?? 'User' }}
+                          </div>
+
+                          <!-- Timeline bar -->
+                          <div class="mt-3 h-2 w-full rounded bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                            <div class="h-full bg-emerald-500 transition-all" :style="{ width: timelineWidth(log) }">
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- RIGHT -->
+                        <div class="text-right">
+
+                          <div v-if="editingLogId === log.id">
+                            <input type="number" v-model.number="editingSeconds"
+                              class="w-24 rounded border px-2 py-1 text-sm" />
+                            <div class="mt-2 flex gap-2 justify-end">
+                              <button class="text-xs text-emerald-600 cursor-pointer" @click="saveEdit(log)">
+                                Save
+                              </button>
+                              <button class="text-xs text-muted-foreground cursor-pointer" @click="cancelEdit">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+
+                          <div v-else>
+                            <div class="font-semibold tabular-nums">
+                              {{ formatDuration(log.duration_seconds) }}
+                            </div>
+
+                            <div class="mt-2 flex gap-3 justify-end text-xs">
+                              <button v-if="isOwner" class="cursor-pointer text-blue-600" @click="startEdit(log)">
+                                Edit
+                              </button>
+
+                              <button v-if="isOwner" class="cursor-pointer text-red-600" @click="deleteLog(log)">
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div v-else class="mt-3 text-sm text-muted-foreground">
+                No time logs recorded yet.
+              </div>
+            </div>
+            >
           </div>
 
-          <!-- Right: meta -->
           <div class="space-y-4">
             <div class="rounded-2xl border bg-background p-5">
               <div class="text-sm font-semibold">People</div>
@@ -527,34 +667,25 @@ function timerStop() {
               </div>
             </div>
 
-            <!-- Comments -->
             <div class="mt-6">
               <div class="text-sm font-semibold">Comments</div>
 
-              <!-- Add comment -->
               <form class="mt-3 space-y-2" @submit.prevent="submitComment">
-                <textarea
-                  v-model="commentForm.body"
-                  rows="3"
-                  class="w-full rounded border px-3 py-2 text-sm"
-                  placeholder="Write a comment..."
-                />
+                <textarea v-model="commentForm.body" rows="3" class="w-full rounded border px-3 py-2 text-sm"
+                  placeholder="Write a comment..." />
                 <div v-if="commentForm.errors.body" class="text-sm text-red-600">
                   {{ commentForm.errors.body }}
                 </div>
 
                 <div class="flex justify-end">
-                  <button
-                    type="submit"
+                  <button type="submit"
                     class="cursor-pointer rounded bg-black px-3 py-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="commentForm.processing || !commentForm.body.trim()"
-                  >
+                    :disabled="commentForm.processing || !commentForm.body.trim()">
                     Post
                   </button>
                 </div>
               </form>
 
-              <!-- List comments -->
               <div v-if="props.comments?.length" class="mt-4 space-y-3">
                 <div v-for="c in props.comments" :key="c.id" class="rounded-xl border p-3">
                   <div class="flex items-start justify-between gap-3">
@@ -572,12 +703,9 @@ function timerStop() {
                       </div>
                     </div>
 
-                    <button
-                      v-if="canDeleteComment(c)"
-                      type="button"
+                    <button v-if="canDeleteComment(c)" type="button"
                       class="cursor-pointer rounded border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                      @click="deleteComment(c.id)"
-                    >
+                      @click="deleteComment(c.id)">
                       Delete
                     </button>
                   </div>

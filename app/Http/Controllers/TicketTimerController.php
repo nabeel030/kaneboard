@@ -36,7 +36,6 @@ class TicketTimerController extends Controller
                     return;
                 }
 
-                // Otherwise: stop the other running timer automatically (professional UX)
                 $this->stopLog($running);
             }
 
@@ -86,7 +85,6 @@ class TicketTimerController extends Controller
 
     /**
      * Stop is same as pause in this model (ends session).
-     * You can keep both for UI clarity.
      */
     public function stop(Request $request, Ticket $ticket)
     {
@@ -94,9 +92,6 @@ class TicketTimerController extends Controller
         return $this->pause($request, $ticket);
     }
 
-    /**
-     * Optional: return live timer info (if you want polling)
-     */
     public function status(Request $request, Ticket $ticket)
     {
         $userId = $request->user()->id;
@@ -121,7 +116,6 @@ class TicketTimerController extends Controller
         $end = now();
         $start = $log->started_at;
 
-        // ✅ always positive
         $seconds = $start->diffInSeconds($end);
 
         $log->forceFill([
@@ -135,5 +129,40 @@ class TicketTimerController extends Controller
         if ($ticket->status !== 'in_progress') {
             abort(403, 'Timer is only allowed when ticket is In progress.');
         }
+    }
+
+    public function update(Request $request, TicketTimeLog $ticketTimeLog)
+    {
+        $request->validate([
+            'duration_seconds' => ['required', 'integer', 'min:0'],
+        ]);
+
+        // Optional: authorize properly
+        // $this->authorize('update', $timeLog);
+
+        DB::transaction(function () use ($ticketTimeLog, $request) {
+
+            $newSeconds = (int) $request->duration_seconds;
+
+            $ticketTimeLog->duration_seconds = $newSeconds;
+
+            if ($ticketTimeLog->started_at) {
+                $ticketTimeLog->ended_at = $ticketTimeLog->started_at->copy()->addSeconds($newSeconds);
+            }
+
+            $ticketTimeLog->save();
+        });
+
+        return back()->with('success', 'Time log updated successfully.');
+    }
+
+    public function destroy(TicketTimeLog $timeLog)
+    {
+        // Optional: authorize
+        // $this->authorize('delete', $timeLog);
+
+        $timeLog->delete();
+
+        return back()->with('success', 'Time log deleted successfully.');
     }
 }
