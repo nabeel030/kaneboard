@@ -313,23 +313,40 @@ const totalLoggedSeconds = computed(() => {
 });
 
 const editingLogId = ref<number | null>(null);
-const editingSeconds = ref<number>(0);
+const editingHms = ref<string>('00:00:00');
+const editError = ref<string | null>(null);
 
 function startEdit(log: TimeLog) {
   editingLogId.value = log.id;
-  editingSeconds.value = log.duration_seconds ?? 0;
+
+  const seconds =
+    log.duration_seconds ??
+    (log.started_at && log.ended_at
+      ? dayjs(log.ended_at).diff(dayjs(log.started_at), 'second')
+      : 0);
+
+  editingHms.value = secondsToHms(seconds);
+  editError.value = null;
 }
 
 function cancelEdit() {
   editingLogId.value = null;
-  editingSeconds.value = 0;
+  editingHms.value = '00:00:00';
+  editError.value = null;
 }
 
 function saveEdit(log: TimeLog) {
+  const secs = hmsToSeconds(editingHms.value);
+
+  if (secs === null) {
+    editError.value = 'Please enter time in HH:MM:SS format (e.g. 01:15:30)';
+    return;
+  }
+
   router.put(
     `/ticket/timelogs/${log.id}`,
     {
-      duration_seconds: editingSeconds.value,
+      duration_seconds: secs,
     },
     {
       preserveScroll: true,
@@ -382,7 +399,55 @@ const groupedLogs = computed(() => {
 
 // optional helpers (useful in UI)
 const timeLogsLinks = computed(() => timeLogsPaginator.value?.links ?? []);
-const timeLogsMeta  = computed(() => timeLogsPaginator.value?.meta ?? null);
+const timeLogsMeta = computed(() => timeLogsPaginator.value?.meta ?? null);
+
+function secondsToHms(totalSeconds = 0) {
+  const s = Math.max(0, Number(totalSeconds) || 0);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+}
+
+/**
+ * Accepts:
+ * - "HH:MM:SS"
+ * - "MM:SS"
+ * - "SS"
+ * - also trims spaces
+ */
+function hmsToSeconds(value) {
+  if (value == null) return 0;
+
+  const raw = String(value).trim();
+  if (!raw) return 0;
+
+  // Allow plain number seconds
+  if (/^\d+$/.test(raw)) return Math.max(0, parseInt(raw, 10));
+
+  const parts = raw.split(":").map((p) => p.trim());
+  if (parts.some((p) => p === "" || !/^\d+$/.test(p))) return null;
+
+  let h = 0, m = 0, s = 0;
+
+  if (parts.length === 3) {
+    h = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10);
+    s = parseInt(parts[2], 10);
+  } else if (parts.length === 2) {
+    m = parseInt(parts[0], 10);
+    s = parseInt(parts[1], 10);
+  } else if (parts.length === 1) {
+    s = parseInt(parts[0], 10);
+  } else {
+    return null;
+  }
+
+  if (m > 59 || s > 59) return null; // keep strict for UX
+  return h * 3600 + m * 60 + s;
+}
 
 </script>
 
@@ -423,8 +488,8 @@ const timeLogsMeta  = computed(() => timeLogsPaginator.value?.meta ?? null);
               </span>
 
               <span v-if="ticket.deadline" class="rounded-full border px-2 py-0.5 text-xs font-medium" :class="ticket.is_overdue
-                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-200 dark:border-red-900/50'
-                  : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800'
+                ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-200 dark:border-red-900/50'
+                : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800'
                 ">
                 Deadline: {{ formatDeadline(ticket.deadline) }}
               </span>
@@ -602,13 +667,21 @@ const timeLogsMeta  = computed(() => timeLogsPaginator.value?.meta ?? null);
                         <div class="text-right">
 
                           <div v-if="editingLogId === log.id">
-                            <input type="number" v-model.number="editingSeconds"
-                              class="w-24 rounded border px-2 py-1 text-sm" />
+                            <input type="text" v-model="editingHms" placeholder="HH:MM:SS"
+                              class="w-28 rounded border px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+
+                            <div v-if="editError" class="mt-1 text-xs text-red-600">
+                              {{ editError }}
+                            </div>
+
                             <div class="mt-2 flex gap-2 justify-end">
-                              <button class="text-xs text-emerald-600 cursor-pointer" @click="saveEdit(log)">
+                              <button class="text-xs text-emerald-600 cursor-pointer hover:underline"
+                                @click="saveEdit(log)">
                                 Save
                               </button>
-                              <button class="text-xs text-muted-foreground cursor-pointer" @click="cancelEdit">
+
+                              <button class="text-xs text-muted-foreground cursor-pointer hover:underline"
+                                @click="cancelEdit">
                                 Cancel
                               </button>
                             </div>
@@ -636,7 +709,7 @@ const timeLogsMeta  = computed(() => timeLogsPaginator.value?.meta ?? null);
                     </div>
                   </div>
                 </div>
-                <div  class="mt-4 flex items-center justify-between">
+                <div class="mt-4 flex items-center justify-between">
                   <p class="text-sm text-gray-500">
                     Showing {{ props.time_logs.from ?? 0 }}–{{ props.time_logs.to ?? 0 }}
                     of {{ props.time_logs.total ?? 0 }}
