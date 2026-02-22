@@ -91,9 +91,14 @@ class TicketController extends Controller
             'assignee:id,name,email',
             'project:id,name,owner_id',
             'attachments',
-            'comments.user:id,name,email',
-            'timeLogs.user:id,name'
+            'comments.user:id,name,email'
         ]);
+
+        $timeLogs = $ticket->timeLogs()
+            ->with('user:id,name')
+            ->latest('id')
+            ->paginate(5)
+            ->withQueryString();
 
         $timer = $this->buildTimerState($ticket->id, $userId);
 
@@ -101,6 +106,7 @@ class TicketController extends Controller
             'ticket' => $ticket,
             'comments' => $ticket->comments,
             'timer' => $timer,
+            'time_logs' => $timeLogs
         ]);
     }
 

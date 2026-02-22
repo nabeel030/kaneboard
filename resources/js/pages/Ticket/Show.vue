@@ -8,6 +8,7 @@ import { type BreadcrumbItem } from '@/types';
 
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import Pagination from '@/components/Pagination.vue';
 
 dayjs.extend(relativeTime);
 
@@ -62,7 +63,6 @@ type Ticket = {
   started_at?: string | null;
   completed_at?: string | null;
   estimate?: number | null;
-  time_logs?: TimeLog[];
 };
 
 type TimeLog = {
@@ -81,6 +81,7 @@ const props = defineProps<{
   statuses?: string[];
   comments: Comment[];
   timer?: TimerState | null;
+  time_logs?: TimeLog[];
 }>();
 
 const labels: Record<string, string> = {
@@ -284,21 +285,6 @@ function timerStop() {
   });
 }
 
-const timeLogs = computed(() => props.ticket.time_logs ?? []);
-const groupedLogs = computed(() => {
-  const logs = props.ticket.time_logs ?? [];
-
-  const groups: Record<string, TimeLog[]> = {};
-
-  logs.forEach(log => {
-    const date = dayjs(log.started_at).format('YYYY-MM-DD');
-
-    if (!groups[date]) groups[date] = [];
-    groups[date].push(log);
-  });
-
-  return groups;
-});
 
 function formatDuration(seconds?: number | null) {
   const s = Math.max(0, Math.floor(seconds ?? 0));
@@ -377,6 +363,26 @@ function timelineWidth(log: TimeLog) {
 
   return `${(duration / total) * 100}%`;
 }
+
+const timeLogsPaginator = computed(() => props.time_logs ?? null);
+
+const timeLogs = computed(() => timeLogsPaginator.value?.data ?? []);
+
+const groupedLogs = computed(() => {
+  const groups = {};
+
+  timeLogs.value.forEach((log) => {
+    const date = dayjs(log.started_at).format("YYYY-MM-DD");
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(log);
+  });
+
+  return groups;
+});
+
+// optional helpers (useful in UI)
+const timeLogsLinks = computed(() => timeLogsPaginator.value?.links ?? []);
+const timeLogsMeta  = computed(() => timeLogsPaginator.value?.meta ?? null);
 
 </script>
 
@@ -630,6 +636,14 @@ function timelineWidth(log: TimeLog) {
                     </div>
                   </div>
                 </div>
+                <div  class="mt-4 flex items-center justify-between">
+                  <p class="text-sm text-gray-500">
+                    Showing {{ props.time_logs.from ?? 0 }}–{{ props.time_logs.to ?? 0 }}
+                    of {{ props.time_logs.total ?? 0 }}
+                  </p>
+
+                  <Pagination :links="timeLogsLinks" :only="['time_logs']" />
+                </div>
 
               </div>
 
@@ -637,7 +651,6 @@ function timelineWidth(log: TimeLog) {
                 No time logs recorded yet.
               </div>
             </div>
-            >
           </div>
 
           <div class="space-y-4">
