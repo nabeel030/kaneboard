@@ -356,6 +356,10 @@ const isOwner = computed(() => {
   return page.props.auth?.user?.id === props.ticket?.project?.owner_id; // adjust to your system
 });
 
+const isAssignee = computed(() => {
+  return page.props.auth?.user?.id === props.ticket?.assigned_to; // adjust to your system
+});
+
 function deleteLog(log: TimeLog) {
   if (!confirm('Delete this session?')) return;
 
@@ -452,7 +456,7 @@ function timelineWidth(log: TimeLog) {
                 </div>
 
                 <!-- ✅ Buttons only when in_progress -->
-                <div v-if="isInProgress" class="flex flex-wrap gap-2">
+                <div v-if="isInProgress && isAssignee" class="flex flex-wrap gap-2">
                   <button type="button"
                     class="cursor-pointer rounded-xl border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
                     @click="timerStart" :disabled="!canStart">
