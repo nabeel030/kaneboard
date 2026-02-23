@@ -23,6 +23,7 @@ import {
   Title,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'vue-chartjs';
+import Pagination from '@/components/Pagination.vue';
 
 ChartJS.register(
   CategoryScale,
@@ -276,10 +277,14 @@ const donutPct = computed(() => {
   return Math.round((done / total) * 100);
 });
 
+const riskTicketsPaginator = computed(() => props.riskTickets ?? null);
+const riskTicketsLinks = computed(() => riskTicketsPaginator.value?.links ?? []);
+const riskTickets = computed(() => riskTicketsPaginator.value?.data ?? []);
 
 </script>
 
 <template>
+
   <Head title="Dashboard" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
@@ -406,16 +411,13 @@ const donutPct = computed(() => {
             </div>
           </div>
 
-          <div v-if="props.riskTickets.length === 0" class="mt-4 rounded-xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+          <div v-if="riskTickets.length === 0"
+            class="mt-4 rounded-xl border bg-muted/10 p-4 text-sm text-muted-foreground">
             No risky tickets 🎉
           </div>
 
           <div v-else class="mt-4 space-y-2">
-            <div
-              v-for="t in props.riskTickets"
-              :key="t.id"
-              class="rounded-xl border bg-muted/10 p-4 hover:bg-muted/20"
-            >
+            <div v-for="t in riskTickets" :key="t.id" class="rounded-xl border bg-muted/10 p-4 hover:bg-muted/20">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="truncate font-medium">{{ t.title }}</div>
@@ -429,6 +431,14 @@ const donutPct = computed(() => {
               </div>
             </div>
           </div>
+            <div class="mt-4 flex items-center justify-between">
+              <p class="text-sm text-gray-500">
+                Showing {{ props.riskTickets.from ?? 0 }}–{{ props.riskTickets.to ?? 0 }}
+                of {{ props.riskTickets.total ?? 0 }}
+              </p>
+
+              <Pagination :links="riskTicketsLinks" :only="['riskTickets']" />
+            </div>
         </div>
 
         <!-- Risky projects -->
@@ -440,63 +450,56 @@ const donutPct = computed(() => {
             </div>
           </div>
 
-          <div v-if="props.riskyProjects.length === 0" class="mt-4 rounded-xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+          <div v-if="props.riskyProjects.length === 0"
+            class="mt-4 rounded-xl border bg-muted/10 p-4 text-sm text-muted-foreground">
             No risky projects 🎉
           </div>
 
           <div v-else class="mt-4 space-y-3">
-            <div
-              v-for="p in props.riskyProjects"
-              :key="p.id"
-              class="rounded-2xl border bg-muted/10 p-4 hover:bg-muted/20"
-            >
+            <div v-for="p in props.riskyProjects" :key="p.id"
+              class="rounded-2xl border bg-muted/10 p-4 hover:bg-muted/20">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <Link class="truncate font-semibold hover:underline block" :href="projectRoutes.show(p.id).url">
-                    {{ p.name }}
+                  {{ p.name }}
                   </Link>
 
                   <div class="mt-1 text-xs text-muted-foreground">
                     End: <span class="font-medium text-foreground">{{ p.end_date ?? '—' }}</span>
-                    <span v-if="p.forecast_end"> • Forecast: <span class="font-medium text-foreground">{{ p.forecast_end }}</span></span>
-                    <span v-if="p.confidence != null"> • Confidence: <span class="font-medium">{{ p.confidence }}%</span></span>
+                    <span v-if="p.forecast_end"> • Forecast: <span class="font-medium text-foreground">{{ p.forecast_end
+                        }}</span></span>
+                    <span v-if="p.confidence != null"> • Confidence: <span class="font-medium">{{ p.confidence
+                        }}%</span></span>
                   </div>
                 </div>
 
-                <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold" :class="healthPill(p.status)">
+                <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold"
+                  :class="healthPill(p.status)">
                   {{ healthLabel(p.status) }}
                 </span>
               </div>
 
               <div class="mt-3 grid grid-cols-2 gap-4">
-  <!-- Expected -->
-  <div class="rounded-xl border bg-background p-3 dark:border-slate-800 flex items-center gap-4">
-    <ProgressPie
-      :value="pct(p.expected_progress)"
-      label="Expected"
-      color="#0284c7" 
-    />
+                <!-- Expected -->
+                <div class="rounded-xl border bg-background p-3 dark:border-slate-800 flex items-center gap-4">
+                  <ProgressPie :value="pct(p.expected_progress)" label="Expected" color="#0284c7" />
 
-    <div>
-      <div class="text-xs text-muted-foreground"> Expected progress</div>
-    </div>
-  </div>
+                  <div>
+                    <div class="text-xs text-muted-foreground"> Expected progress</div>
+                  </div>
+                </div>
 
-  <!-- Actual -->
-  <div class="rounded-xl border bg-background p-3 dark:border-slate-800 flex items-center gap-4">
-    <ProgressPie
-      :value="pct(p.actual_progress)"
-      label="Actual"
-      color="#059669" 
-    />
+                <!-- Actual -->
+                <div class="rounded-xl border bg-background p-3 dark:border-slate-800 flex items-center gap-4">
+                  <ProgressPie :value="pct(p.actual_progress)" label="Actual" color="#059669" />
 
-    <div>
-      <div class="text-xs text-muted-foreground">Actual progress</div>
-    </div>
-  </div>
-</div>
+                  <div>
+                    <div class="text-xs text-muted-foreground">Actual progress</div>
+                  </div>
+                </div>
+              </div>
 
-              
+
 
               <div v-if="p.risk_signals?.length" class="mt-3">
                 <div class="text-xs font-semibold text-muted-foreground">Signals</div>

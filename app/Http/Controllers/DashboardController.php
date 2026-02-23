@@ -72,9 +72,6 @@ class DashboardController extends Controller
             })
             ->count();
 
-        // ----------------------------
-        // KPI: my workload
-        // ----------------------------
         $myOpenAssigned = Ticket::query()
             ->whereIn('project_id', $accessibleProjectIds)
             ->where('assigned_to', $user->id)
@@ -107,7 +104,6 @@ class DashboardController extends Controller
             ->pluck('c', 'd') // [date => count]
             ->toArray();
 
-        // Fill missing days with 0
         $trend14 = [];
         for ($i = 0; $i < $days; $i++) {
             $date = Carbon::today()->subDays($days - 1 - $i)->format('Y-m-d');
@@ -117,9 +113,7 @@ class DashboardController extends Controller
             ];
         }
 
-        // ----------------------------
         // Status distribution (counts per status)
-        // ----------------------------
         $statuses = defined(Ticket::class . '::STATUSES')
             ? Ticket::STATUSES
             : ['backlog', 'todo', 'in_progress', 'done', 'tested', 'completed'];
@@ -136,9 +130,7 @@ class DashboardController extends Controller
             return ['status' => $s, 'count' => (int)($statusCounts[$s] ?? 0)];
         })->values()->all();
 
-        // ----------------------------
         // Risk tickets list (overdue + due soon)
-        // ----------------------------
         $riskTickets = Ticket::query()
             ->with('project:id,name')
             ->whereIn('project_id', $accessibleProjectIds)
@@ -146,25 +138,13 @@ class DashboardController extends Controller
             ->whereNotNull('deadline')
             ->where(function ($q) use ($today, $dueSoonUntil) {
                 $q->whereDate('deadline', '<', $today)
-                  ->orWhere(function ($q2) use ($today, $dueSoonUntil) {
-                      $q2->whereDate('deadline', '>=', $today)
-                         ->whereDate('deadline', '<=', $dueSoonUntil);
-                  });
+                ->orWhereBetween('deadline', [$today, $dueSoonUntil]);
             })
-            // overdue first
-            ->orderByRaw("CASE WHEN deadline < ? THEN 0 ELSE 1 END ASC", [$today->toDateString()])
+            ->orderByRaw("CASE WHEN deadline < ? THEN 0 ELSE 1 END ASC", [$today])
             ->orderBy('deadline', 'asc')
-            ->limit(10)
-            ->get(['id', 'title', 'status', 'deadline', 'project_id'])
-            ->map(fn ($t) => [
-                'id' => $t->id,
-                'title' => $t->title,
-                'status' => $t->status,
-                'deadline' => $t->deadline ? Carbon::parse($t->deadline)->format('Y-m-d') : null,
-                'project' => $t->project ? ['id' => $t->project->id, 'name' => $t->project->name] : null,
-            ])
-            ->values()
-            ->all();
+            ->select(['id', 'title', 'status', 'deadline', 'project_id'])
+            ->paginate(5)
+            ->withQueryString();
 
         // ----------------------------
         // Risky projects (uses ProjectHealthService)
