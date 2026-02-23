@@ -778,6 +778,7 @@ const activeChips = computed(() => activeFilterChips());
                             :key="element.id"
                             type="button"
                             class="
+                                mb-4
                                 cursor-pointer
                                 w-full
                                 rounded-xl
@@ -852,6 +853,7 @@ const activeChips = computed(() => activeFilterChips());
                             <button
                                 type="button"
                                 class="
+                                    mb-4    
                                     cursor-pointer
                                     w-full
                                     rounded-xl
