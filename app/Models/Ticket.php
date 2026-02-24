@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 
 class Ticket extends Model
 {
@@ -69,17 +70,12 @@ class Ticket extends Model
             $wasDoneLike = in_array($oldStatus, self::DONE_STATUSES, true);
             $isDoneLike  = in_array($newStatus, self::DONE_STATUSES, true);
 
-            // If moved into "started" and started_at is empty, set it once
             if (in_array($newStatus, self::STARTED_STATUSES, true) && !$ticket->started_at) {
                 $ticket->started_at = $now;
             }
 
-            // If moved into done-like, set completed_at AND stop any running timers
             if ($isDoneLike) {
                 $ticket->completed_at = $ticket->completed_at ?: $now;
-
-                // ✅ Auto-stop running logs (important)
-                // Ensure relation exists in model: timeLogs()
                 $ticket->timeLogs()
                     ->whereNull('ended_at')
                     ->get()
@@ -90,7 +86,6 @@ class Ticket extends Model
                     });
             }
 
-            // ✅ OPTIONAL (recommended): If reopened from done-like -> not done-like, clear completed_at
             if ($wasDoneLike && !$isDoneLike) {
                 $ticket->completed_at = null;
             }
@@ -150,8 +145,38 @@ class Ticket extends Model
         return $this->hasMany(TicketTimeLog::class);
     }
 
+    public function getTrackedHoursAttribute(): float
+    {
+        return round($this->tracked_seconds / 3600, 2);
+    }
+
+    public function scopeWithTrackedSeconds(Builder $query): Builder
+    {
+        $now = now();
+
+        $sub = DB::table('ticket_time_logs')
+            ->selectRaw("
+            COALESCE(SUM(
+                CASE
+                    WHEN ended_at IS NULL
+                        THEN TIMESTAMPDIFF(SECOND, started_at, ?)
+                    ELSE COALESCE(duration_seconds, TIMESTAMPDIFF(SECOND, started_at, ended_at))
+                END
+            ), 0)
+        ", [$now])
+            ->whereColumn('ticket_time_logs.ticket_id', 'tickets.id');
+
+        return $query->addSelect([
+            'tracked_seconds' => $sub,
+        ]);
+    }
+
     public function getTrackedSecondsAttribute(): int
     {
+        if (array_key_exists('tracked_seconds', $this->attributes)) {
+            return (int) $this->attributes['tracked_seconds'];
+        }
+
         $ended = (int) $this->timeLogs()
             ->whereNotNull('ended_at')
             ->sum(DB::raw('COALESCE(duration_seconds, TIMESTAMPDIFF(SECOND, started_at, ended_at))'));
@@ -162,10 +187,5 @@ class Ticket extends Model
             ->sum(fn($l) => now()->diffInSeconds($l->started_at));
 
         return $ended + $running;
-    }
-
-    public function getTrackedHoursAttribute(): float
-    {
-        return round($this->tracked_seconds / 3600, 2);
     }
 }

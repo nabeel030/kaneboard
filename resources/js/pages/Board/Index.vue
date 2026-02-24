@@ -25,10 +25,10 @@ type Ticket = {
     deadline?: string | null;
     priority?: string;
 
-    // (Optional, if your backend includes these on the board payload)
     assignee?: { id: number; name: string } | null;
     is_overdue?: boolean;
     type: string;
+    tracked_hours?: number;
 };
 
 type TicketTypes = {
@@ -556,6 +556,12 @@ function activeFilterChips() {
 
 const activeChips = computed(() => activeFilterChips());
 
+function formatHours(h?: number | null) {
+  if (h == null) return '';
+  if (h === 0) return '0h';
+  return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+}
+
 </script>
 
 <template>
@@ -853,7 +859,7 @@ const activeChips = computed(() => activeFilterChips());
                             <button
                                 type="button"
                                 class="
-                                    mb-4    
+                                    mb-4
                                     cursor-pointer
                                     w-full
                                     rounded-xl
@@ -911,6 +917,13 @@ const activeChips = computed(() => activeFilterChips());
                                         :class="priorityClasses(element.priority)"
                                     >
                                         {{ element.priority ?? 'low' }}
+                                    </span>
+                                    <span
+                                        v-if="(element.tracked_hours ?? 0) > 0"
+                                        class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200"
+                                        title="Tracked time"
+                                        >
+                                        ⏱ {{ formatHours(element.tracked_hours) }}
                                     </span>
                                 </div>
                             </button>
