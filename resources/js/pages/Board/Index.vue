@@ -294,7 +294,16 @@ function priorityClasses(priority?: string) {
 
 function formatDeadline(deadline?: string | null) {
     if (!deadline) return '';
-    return deadline.split('T')[0];
+
+    const dStr = deadline.split('T')[0];
+    const d = new Date(dStr + 'T00:00:00');
+
+    if (Number.isNaN(d.getTime())) return '';
+
+    return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+    });
 }
 
 /* =========================
@@ -557,14 +566,56 @@ function activeFilterChips() {
 const activeChips = computed(() => activeFilterChips());
 
 function formatHours(h?: number | null) {
-  if (h == null) return '';
-  if (h === 0) return '0h';
-  return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+    if (h == null) return '';
+    if (h === 0) return '0h';
+    return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+}
+
+function typeChipClasses(type?: string) {
+    // matches the "Feature" blue pill in your screenshot
+    return 'bg-blue-100 text-blue-700';
+}
+
+function priorityDotClasses(priority?: string) {
+    switch ((priority ?? 'low').toLowerCase()) {
+        case 'high':
+            return 'bg-red-500';
+        case 'medium':
+            return 'bg-amber-400'; // orange/yellowish
+        case 'low':
+        default:
+            return 'bg-slate-400'; // grey dot
+    }
+}
+
+function priorityTextClasses(priority?: string) {
+    switch ((priority ?? 'low').toLowerCase()) {
+        case 'high':
+            return 'text-red-600';
+        case 'medium':
+            return 'text-amber-600';
+        case 'low':
+        default:
+            return 'text-slate-500';
+    }
+}
+
+function priorityLabel(priority?: string) {
+    const p = (priority ?? 'low').toLowerCase();
+    return p.charAt(0).toUpperCase() + p.slice(1);
+}
+
+function initials(name?: string | null) {
+    const n = (name ?? '').trim();
+    if (!n) return '';
+    const parts = n.split(/\s+/).slice(0, 2);
+    return parts.map(p => p[0]?.toUpperCase()).join('');
 }
 
 </script>
 
 <template>
+
     <Head title="Ticket Board" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
@@ -574,11 +625,8 @@ function formatHours(h?: number | null) {
 
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-muted-foreground">Project</span>
-                    <select
-                        v-model="state.selectedProjectId"
-                        class="cursor-pointer rounded border px-3 py-2 text-sm"
-                        @change="changeProject"
-                    >
+                    <select v-model="state.selectedProjectId" class="cursor-pointer rounded border px-3 py-2 text-sm"
+                        @change="changeProject">
                         <option v-for="p in props.projects" :key="p.id" :value="p.id">
                             {{ p.name }}
                         </option>
@@ -587,26 +635,19 @@ function formatHours(h?: number | null) {
             </div>
 
             <div
-                class="rounded-2xl border bg-background/60 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/40"
-            >
+                class="rounded-2xl border bg-background/60 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/40">
                 <div class="flex flex-col gap-3">
                     <div class="flex flex-wrap items-end gap-3">
                         <div class="min-w-[220px] flex-1">
                             <label class="text-xs font-medium text-muted-foreground">Search</label>
                             <div class="mt-1 flex items-center gap-2 rounded-xl border bg-background px-3 py-2">
                                 <span class="text-muted-foreground text-sm">⌕</span>
-                                <input
-                                    v-model="filters.q"
-                                    type="text"
+                                <input v-model="filters.q" type="text"
                                     class="w-full bg-transparent text-sm outline-none"
-                                    placeholder="Title, description, or #id…"
-                                />
-                                <button
-                                    v-if="filters.q"
-                                    type="button"
+                                    placeholder="Title, description, or #id…" />
+                                <button v-if="filters.q" type="button"
                                     class="rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted/40"
-                                    @click="filters.q = ''"
-                                >
+                                    @click="filters.q = ''">
                                     Clear
                                 </button>
                             </div>
@@ -614,10 +655,8 @@ function formatHours(h?: number | null) {
 
                         <div class="min-w-[200px]">
                             <label class="text-xs font-medium text-muted-foreground">Assignee</label>
-                            <select
-                                v-model="filters.assignee"
-                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
-                            >
+                            <select v-model="filters.assignee"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm">
                                 <option value="any">Any</option>
                                 <option value="unassigned">Unassigned</option>
                                 <option v-for="m in props.members" :key="m.id" :value="String(m.id)">
@@ -628,10 +667,8 @@ function formatHours(h?: number | null) {
 
                         <div class="min-w-[160px]">
                             <label class="text-xs font-medium text-muted-foreground">Priority</label>
-                            <select
-                                v-model="filters.priority"
-                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
-                            >
+                            <select v-model="filters.priority"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm">
                                 <option value="any">Any</option>
                                 <option value="low">Low</option>
                                 <option value="medium">Medium</option>
@@ -641,10 +678,8 @@ function formatHours(h?: number | null) {
 
                         <div class="min-w-[160px]">
                             <label class="text-xs font-medium text-muted-foreground">Ticket Type</label>
-                            <select
-                                v-model="filters.type"
-                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
-                            >
+                            <select v-model="filters.type"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm">
                                 <option value="any">Any</option>
                                 <option v-for="t in props.ticketTypes" :key="t.value" :value="t.value">
                                     {{ t.label }}
@@ -654,10 +689,8 @@ function formatHours(h?: number | null) {
 
                         <div class="min-w-[180px]">
                             <label class="text-xs font-medium text-muted-foreground">Due</label>
-                            <select
-                                v-model="filters.due"
-                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
-                            >
+                            <select v-model="filters.due"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm">
                                 <option value="any">Any</option>
                                 <option value="no_deadline">No deadline</option>
                                 <option value="has_deadline">Has deadline</option>
@@ -669,10 +702,8 @@ function formatHours(h?: number | null) {
 
                         <div class="min-w-[180px]">
                             <label class="text-xs font-medium text-muted-foreground">Sort</label>
-                            <select
-                                v-model="filters.sort"
-                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm"
-                            >
+                            <select v-model="filters.sort"
+                                class="mt-1 w-full cursor-pointer rounded-xl border bg-background px-3 py-2 text-sm">
                                 <option value="manual">Manual (board order)</option>
                                 <option value="deadline_asc">Deadline ↑</option>
                                 <option value="deadline_desc">Deadline ↓</option>
@@ -682,23 +713,18 @@ function formatHours(h?: number | null) {
                             </select>
                         </div>
 
-                        <button
-                            type="button"
+                        <button type="button"
                             class="mt-5 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition hover:bg-muted/40"
                             :class="filters.mineOnly ? 'bg-muted/40' : ''"
-                            @click="filters.mineOnly = !filters.mineOnly"
-                        >
+                            @click="filters.mineOnly = !filters.mineOnly">
                             <span class="text-base">👤</span>
                             <span>Created by me</span>
                         </button>
 
-                        <button
-                            type="button"
+                        <button type="button"
                             class="mt-5 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted/40"
                             :disabled="!hasActiveFilters"
-                            :class="!hasActiveFilters ? 'opacity-50 cursor-not-allowed' : ''"
-                            @click="clearFilters"
-                        >
+                            :class="!hasActiveFilters ? 'opacity-50 cursor-not-allowed' : ''" @click="clearFilters">
                             <span class="text-base">↺</span>
                             <span>Reset</span>
                         </button>
@@ -706,14 +732,9 @@ function formatHours(h?: number | null) {
 
                     <div v-if="activeChips.length" class="flex flex-wrap items-center gap-2">
                         <span class="text-xs text-muted-foreground">Active:</span>
-                        <button
-                            v-for="chip in activeChips"
-                            :key="chip.key"
-                            type="button"
+                        <button v-for="chip in activeChips" :key="chip.key" type="button"
                             class="group inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs shadow-sm transition hover:bg-muted/40"
-                            @click="chip.onClear"
-                            :title="'Remove ' + chip.label"
-                        >
+                            @click="chip.onClear" :title="'Remove ' + chip.label">
                             <span class="font-medium">{{ chip.label }}</span>
                             <span class="text-muted-foreground group-hover:text-foreground">✕</span>
                         </button>
@@ -729,29 +750,20 @@ function formatHours(h?: number | null) {
                 Create a project first, then come back to Ticket Board.
             </div>
 
-            <div
-                v-else
-                class="grid gap-4 overflow-y-auto h-full"
-                :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(360px, 1fr))` }"
-            >
-                <div
-                    v-for="status in statuses"
-                    :key="status"
-                    :class="[
-                        'relative overflow-hidden rounded-xl border border-sidebar-border/70 ring-1',
-                        themeFor(status).ring,
-                        themeFor(status).bg,
-                    ]"
-                >
+            <div v-else class="grid gap-4 overflow-y-auto h-full"
+                :style="{ gridTemplateColumns: `repeat(${statuses.length}, minmax(360px, 1fr))` }">
+                <div v-for="status in statuses" :key="status" :class="[
+                    'relative overflow-hidden rounded-xl border border-sidebar-border/70 ring-1',
+                    themeFor(status).ring,
+                    themeFor(status).bg,
+                ]">
                     <div class="flex items-center justify-between border-b p-3">
                         <div class="flex items-center gap-2">
                             <div class="font-semibold">{{ labels[status] ?? status }}</div>
-                            <span
-                                :class="[
-                                    'rounded-full px-2 py-0.5 text-xs font-medium',
-                                    themeFor(status).chip,
-                                ]"
-                            >
+                            <span :class="[
+                                'rounded-full px-2 py-0.5 text-xs font-medium',
+                                themeFor(status).chip,
+                            ]">
                                 <template v-if="hasActiveFilters">
                                     {{ filteredCountByStatus[status] }} / {{ (state.columns[status]?.length ?? 0) }}
                                 </template>
@@ -761,163 +773,179 @@ function formatHours(h?: number | null) {
                             </span>
                         </div>
 
-                        <button
-                            type="button"
+                        <button type="button"
                             class="cursor-pointer rounded border px-2 py-1 text-xs hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="!canCreateTicket"
-                            @click="openAddModal(status)"
-                        >
+                            :disabled="!canCreateTicket" @click="openAddModal(status)">
                             + Add
                         </button>
                     </div>
 
-                    <div
-                        v-if="hasActiveFilters"
-                        class="min-h-[220px] max-h-[70vh] overflow-y-auto space-y-2 p-3"
-                    >
-                        <div v-if="(filteredColumns[status]?.length ?? 0) === 0" class="rounded-xl border bg-background/60 p-3 text-sm text-muted-foreground">
+                    <div v-if="hasActiveFilters" class="min-h-[220px] max-h-[70vh] overflow-y-auto space-y-2 p-3">
+                        <div v-if="(filteredColumns[status]?.length ?? 0) === 0"
+                            class="rounded-xl border bg-background/60 p-3 text-sm text-muted-foreground">
                             No tickets match your filters.
                         </div>
 
-                        <button
-                            v-for="element in filteredColumns[status]"
-                            :key="element.id"
-                            type="button"
-                            class="
-                                mb-4
-                                cursor-pointer
-                                w-full
-                                rounded-xl
-                                border
-                                bg-white
-                                dark:bg-zinc-950
-                                p-3
-                                text-left
-                                shadow-sm
-                                transition
-                                hover:shadow
-                                hover:bg-zinc-50
-                                dark:hover:bg-zinc-900
-                            "
-                            @click="openEditModal(element)"
-                        >
-                            <div class="font-medium flex justify-between">
-                                    <span>
-                                        <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
-                                        {{ element.title }}
-                                    </span>
-                                <div>
-                                    <span
-                                        class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
-                                        :class="priorityClasses(element.type)"
-                                    >
-                                        {{ element.type ?? 'feature' }}
-                                    </span>
+                        <button v-for="element in filteredColumns[status]" :key="element.id" type="button" class="
+    w-full text-left
+    rounded-2xl border border-slate-200
+    bg-white
+    p-4
+    shadow-sm
+    transition
+    hover:shadow-md
+    active:scale-[0.99]
+  " @click="openEditModal(element)">
+                            <!-- Top row: #id left, Type chip right -->
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-sm font-semibold text-slate-500">
+                                    #{{ element.id }}
                                 </div>
+
+                                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                                    :class="typeChipClasses(element.type)">
+                                    {{ (element.type ?? 'feature').charAt(0).toUpperCase() + (element.type ??
+                                    'feature').slice(1) }}
+                                </span>
                             </div>
 
-                            <div v-if="element.description" class="mt-1 text-sm text-muted-foreground">
-                                {{ element.description }}
+                            <!-- Title -->
+                            <div class="mt-1 text-base font-extrabold text-slate-900">
+                                {{ element.title }}
                             </div>
 
-                            <div class="mt-4 flex items-center justify-between gap-2">
-                                <span class="rounded-full border px-2 py-0.5 text-xs border-zinc-300 dark:bg-zinc-900">
-                                    {{ element.assignee?.name ?? 'Not Assigned' }}
-                                </span>
+                            <!-- Subtitle (same text style as screenshot) -->
+                            <div class="mt-1 text-sm text-slate-500">
+                                {{ element.description ?? element.title }}
+                            </div>
 
-                                <span
-                                    v-if="element.deadline"
-                                    class="rounded-full border px-2 py-0.5 text-xs font-medium"
-                                    :class="
-                                        (element.is_overdue ?? false)
-                                            ? 'bg-red-100 text-red-700 border-red-300'
-                                            : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200'
-                                    "
-                                >
-                                    {{ formatDeadline(element.deadline) }}
-                                </span>
+                            <!-- Bottom row: Priority (dot+text), Date (red), Assignee icon right -->
+                            <div class="mt-4 flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <!-- Priority -->
+                                    <div class="flex items-center gap-2">
+                                        <span class="h-2.5 w-2.5 rounded-full"
+                                            :class="priorityDotClasses(element.priority)"></span>
+                                        <span class="text-sm font-medium"
+                                            :class="priorityTextClasses(element.priority)">
+                                            {{ priorityLabel(element.priority) }}
+                                        </span>
+                                    </div>
 
+                                    <!-- Deadline (red calendar + red date like screenshot) -->
+                                    <div v-if="element.deadline" class="flex items-center gap-2">
+                                        <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round" aria-hidden="true">
+                                            <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                                            <path d="M16 2v4M8 2v4M3 10h18"></path>
+                                        </svg>
+
+                                        <span class="text-sm font-semibold text-red-500">
+                                            {{ formatDeadline(element.deadline) }}
+                                        </span>
+                                    </div>
+                                </div>
                                 <span
-                                    class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
-                                    :class="priorityClasses(element.priority)"
-                                >
-                                    {{ element.priority ?? 'low' }}
-                                </span>
+                                        v-if="(element.tracked_hours ?? 0) > 0"
+                                        class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200"
+                                        title="Tracked time"
+                                        >
+                                        ⏱ {{ formatHours(element.tracked_hours) }}
+                                    </span>
+
+                                <div class="
+        h-9 w-9
+        rounded-full
+        border border-slate-200
+        bg-slate-100
+        flex items-center justify-center
+        text-slate-500
+        overflow-hidden
+      " :title="element.assignee?.name ?? 'Unassigned'">
+                                    <template v-if="element.assignee?.name">
+                                        <span class="text-xs font-bold text-slate-600">
+                                            {{ initials(element.assignee.name) }}
+                                        </span>
+                                    </template>
+
+                                    <template v-else>
+                                        <!-- user icon like screenshot -->
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                            aria-hidden="true">
+                                            <path d="M20 21a8 8 0 0 0-16 0"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </template>
+                                </div>
                             </div>
                         </button>
                     </div>
 
-                    <draggable
-                        v-else
-                        v-model="state.columns[status]"
-                        item-key="id"
-                        group="tickets"
-                        class="min-h-[220px] max-h-[70vh] overflow-y-auto space-y-2 p-3"
-                        @end="saveOrder"
-                    >
+                    <draggable v-else v-model="state.columns[status]" item-key="id" group="tickets"
+                        class="min-h-[220px] max-h-[70vh] overflow-y-auto space-y-2 p-3" @end="saveOrder">
                         <template #item="{ element }">
-                            <button
-                                type="button"
-                                class="
-                                    mb-4
-                                    cursor-pointer
-                                    w-full
-                                    rounded-xl
-                                    border
+                            <button type="button" class="
+                                    w-full text-left
+                                    rounded-2xl border border-slate-200
                                     bg-white
-                                    dark:bg-zinc-950
-                                    p-3
-                                    text-left
+                                    p-4
                                     shadow-sm
                                     transition
-                                    hover:shadow
-                                    hover:bg-zinc-50
-                                    dark:hover:bg-zinc-900
-                                "
-                                @click="openEditModal(element)"
-                            >
-                                <div class="font-medium flex items-center justify-between">
-                                    <span>
-                                        <span class="text-xs text-muted-foreground">#{{ element.id }}</span>
-                                        {{ element.title }}
-                                    </span>
-                                    <div>
-                                        <span
-                                            class="rounded-full border px-2 py-0.5 text-xs font-medium  capitalize"
-                                            :class="priorityClasses(element.type)"
-                                        >
-                                            {{ element.type ?? 'feature' }}
-                                        </span>
+                                    hover:shadow-md
+                                    active:scale-[0.99]
+                                " @click="openEditModal(element)">
+                                <!-- Top row: #id left, Type chip right -->
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="text-sm font-semibold text-slate-500">
+                                        #{{ element.id }}
                                     </div>
+
+                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                                        :class="typeChipClasses(element.type)">
+                                        {{ (element.type ?? 'feature').charAt(0).toUpperCase() + (element.type ??
+                                            'feature').slice(1) }}
+                                    </span>
                                 </div>
 
-                                <div v-if="element.description" class="mt-1 text-sm text-muted-foreground">
-                                    {{ element.description }}
+                                <!-- Title -->
+                                <div class="mt-1 text-base font-extrabold text-slate-900">
+                                    {{ element.title }}
                                 </div>
 
-                                <div class="mt-4 flex items-center justify-between gap-2">
-                                    <span class="rounded-full border px-2 py-0.5 text-xs border-zinc-300 dark:bg-zinc-900">
-                                        {{ element.assignee?.name ?? 'Not Assigned' }}
-                                    </span>
+                                <!-- Subtitle (same text style as screenshot) -->
+                                <div class="mt-1 text-sm text-slate-500">
+                                    {{ element.description ?? element.title }}
+                                </div>
 
-                                    <span
-                                        v-if="element.deadline"
-                                        class="rounded-full border px-2 py-0.5 text-xs font-medium"
-                                        :class="
-                                            (element.is_overdue ?? false)
-                                                ? 'bg-red-100 text-red-700 border-red-300'
-                                                : 'bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200'
-                                        "
-                                    >
-                                        {{ formatDeadline(element.deadline) }}
-                                    </span>
+                                <!-- Bottom row: Priority (dot+text), Date (red), Assignee icon right -->
+                                <div class="mt-4 flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <!-- Priority -->
+                                        <div class="flex items-center gap-2">
+                                            <span class="h-2.5 w-2.5 rounded-full"
+                                                :class="priorityDotClasses(element.priority)"></span>
+                                            <span class="text-sm font-medium"
+                                                :class="priorityTextClasses(element.priority)">
+                                                {{ priorityLabel(element.priority) }}
+                                            </span>
+                                        </div>
 
-                                    <span
-                                        class="rounded-full border px-2 py-0.5 text-xs font-medium capitalize"
-                                        :class="priorityClasses(element.priority)"
-                                    >
-                                        {{ element.priority ?? 'low' }}
-                                    </span>
+                                        <!-- Deadline (red calendar + red date like screenshot) -->
+                                        <div v-if="element.deadline" class="flex items-center gap-2">
+                                            <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round" aria-hidden="true">
+                                                <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                                                <path d="M16 2v4M8 2v4M3 10h18"></path>
+                                            </svg>
+
+                                            <span class="text-sm font-semibold text-red-500">
+                                                {{ formatDeadline(element.deadline) }}
+                                            </span>
+                                        </div>
+                                    </div>
                                     <span
                                         v-if="(element.tracked_hours ?? 0) > 0"
                                         class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200"
@@ -925,6 +953,33 @@ function formatHours(h?: number | null) {
                                         >
                                         ⏱ {{ formatHours(element.tracked_hours) }}
                                     </span>
+
+                                    <!-- Assignee circle -->
+                                    <div class="
+        h-9 w-9
+        rounded-full
+        border border-slate-200
+        bg-slate-100
+        flex items-center justify-center
+        text-slate-500
+        overflow-hidden
+      " :title="element.assignee?.name ?? 'Unassigned'">
+                                        <template v-if="element.assignee?.name">
+                                            <span class="text-xs font-bold text-slate-600">
+                                                {{ initials(element.assignee.name) }}
+                                            </span>
+                                        </template>
+
+                                        <template v-else>
+                                            <!-- user icon like screenshot -->
+                                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                                aria-hidden="true">
+                                                <path d="M20 21a8 8 0 0 0-16 0"></path>
+                                                <circle cx="12" cy="7" r="4"></circle>
+                                            </svg>
+                                        </template>
+                                    </div>
                                 </div>
                             </button>
                         </template>
@@ -939,10 +994,8 @@ function formatHours(h?: number | null) {
                 <div class="absolute inset-0 bg-black/40 cursor-pointer" @click="closeModal" />
 
                 <transition name="pop">
-                    <div
-                        v-if="state.modalOpen"
-                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col"
-                    >
+                    <div v-if="state.modalOpen"
+                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col">
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-lg font-semibold">Add Ticket</div>
@@ -957,7 +1010,8 @@ function formatHours(h?: number | null) {
                         <form class="mt-4 space-y-3 overflow-y-auto flex-1 pr-1" @submit.prevent="submitTicket">
                             <div>
                                 <label class="text-sm">Title</label>
-                                <input v-model="form.title" class="mt-1 w-full rounded border px-3 py-2" placeholder="Title" />
+                                <input v-model="form.title" class="mt-1 w-full rounded border px-3 py-2"
+                                    placeholder="Title" />
                                 <div v-if="form.errors.title" class="mt-1 text-sm text-red-600">
                                     {{ form.errors.title }}
                                 </div>
@@ -965,12 +1019,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Description</label>
-                                <textarea
-                                    v-model="form.description"
-                                    class="mt-1 w-full rounded border px-3 py-2"
-                                    rows="4"
-                                    placeholder="Optional description..."
-                                />
+                                <textarea v-model="form.description" class="mt-1 w-full rounded border px-3 py-2"
+                                    rows="4" placeholder="Optional description..." />
                                 <div v-if="form.errors.description" class="mt-1 text-sm text-red-600">
                                     {{ form.errors.description }}
                                 </div>
@@ -978,7 +1028,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Assignee</label>
-                                <select v-model="form.assigned_to" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                <select v-model="form.assigned_to"
+                                    class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
                                     <option :value="null">Unassigned</option>
                                     <option v-for="m in props.members" :key="m.id" :value="m.id">
                                         {{ m.name }} ({{ m.email }})
@@ -991,7 +1042,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Deadline</label>
-                                <input v-model="form.deadline" type="date" class="mt-1 w-full rounded border px-3 py-2" />
+                                <input v-model="form.deadline" type="date"
+                                    class="mt-1 w-full rounded border px-3 py-2" />
                                 <div v-if="form.errors.deadline" class="mt-1 text-sm text-red-600">
                                     {{ form.errors.deadline }}
                                 </div>
@@ -999,7 +1051,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Priority</label>
-                                <select v-model="form.priority" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                <select v-model="form.priority"
+                                    class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
@@ -1013,11 +1066,7 @@ function formatHours(h?: number | null) {
                                 <label class="text-sm">Type</label>
                                 <select v-model="form.type" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
                                     <option disabled value="">Select type</option>
-                                    <option
-                                        v-for="type in ticketTypes"
-                                        :key="type.value"
-                                        :value="type.value"
-                                    >
+                                    <option v-for="type in ticketTypes" :key="type.value" :value="type.value">
                                         {{ type.label }}
                                     </option>
                                 </select>
@@ -1029,12 +1078,9 @@ function formatHours(h?: number | null) {
                             <div>
                                 <label class="text-sm">Attachments</label>
 
-                                <input
-                                    type="file"
-                                    multiple
+                                <input type="file" multiple
                                     class="cursor-pointer mt-1 w-full rounded border px-3 py-2 text-sm"
-                                    @change="onFilesChange"
-                                />
+                                    @change="onFilesChange" />
 
                                 <div v-if="form.files?.length" class="mt-2 space-y-1 text-xs text-muted-foreground">
                                     <div v-for="(f, i) in form.files" :key="i">• {{ f.name }}</div>
@@ -1052,20 +1098,14 @@ function formatHours(h?: number | null) {
                             </div>
 
                             <div class="flex justify-end gap-2 sticky bottom-0 bg-background pt-3">
-                                <button
-                                    type="button"
-                                    class="cursor-pointer rounded border px-3 py-2 text-sm"
-                                    @click="closeModal"
-                                    :disabled="form.processing"
-                                >
+                                <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm"
+                                    @click="closeModal" :disabled="form.processing">
                                     Cancel
                                 </button>
 
-                                <button
-                                    type="submit"
+                                <button type="submit"
                                     class="cursor-pointer rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-                                    :disabled="form.processing"
-                                >
+                                    :disabled="form.processing">
                                     <span v-if="form.processing">Saving…</span>
                                     <span v-else>Save</span>
                                 </button>
@@ -1082,10 +1122,8 @@ function formatHours(h?: number | null) {
                 <div class="absolute inset-0 bg-black/40 cursor-pointer" @click="closeEditModal" />
 
                 <transition name="pop">
-                    <div
-                        v-if="editState.open"
-                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col"
-                    >
+                    <div v-if="editState.open"
+                        class="relative z-10 w-full max-w-lg rounded-2xl border bg-background p-5 shadow-xl max-h-[85vh] flex flex-col">
                         <div class="flex items-start justify-between">
                             <div>
                                 <div class="text-lg font-semibold">Edit Ticket</div>
@@ -1095,17 +1133,15 @@ function formatHours(h?: number | null) {
                                 </div>
                             </div>
 
-                            <button class="cursor-pointer rounded p-2 hover:bg-muted/40" @click="closeEditModal">✕</button>
+                            <button class="cursor-pointer rounded p-2 hover:bg-muted/40"
+                                @click="closeEditModal">✕</button>
                         </div>
 
                         <form class="mt-4 space-y-3 overflow-y-auto flex-1 pr-1" @submit.prevent="submitEdit">
                             <div>
                                 <label class="text-sm">Title</label>
-                                <input
-                                    v-model="editForm.title"
-                                    class="mt-1 w-full rounded border px-3 py-2"
-                                    :disabled="!canEditSelectedTicket"
-                                />
+                                <input v-model="editForm.title" class="mt-1 w-full rounded border px-3 py-2"
+                                    :disabled="!canEditSelectedTicket" />
                                 <div v-if="editForm.errors.title" class="mt-1 text-sm text-red-600">
                                     {{ editForm.errors.title }}
                                 </div>
@@ -1113,12 +1149,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Description</label>
-                                <textarea
-                                    v-model="editForm.description"
-                                    class="mt-1 w-full rounded border px-3 py-2"
-                                    rows="4"
-                                    :disabled="!canEditSelectedTicket"
-                                />
+                                <textarea v-model="editForm.description" class="mt-1 w-full rounded border px-3 py-2"
+                                    rows="4" :disabled="!canEditSelectedTicket" />
                                 <div v-if="editForm.errors.description" class="mt-1 text-sm text-red-600">
                                     {{ editForm.errors.description }}
                                 </div>
@@ -1126,11 +1158,9 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Status</label>
-                                <select
-                                    v-model="editForm.status"
+                                <select v-model="editForm.status"
                                     class="mt-1 w-full cursor-pointer rounded border px-3 py-2"
-                                    :disabled="!canEditSelectedTicket"
-                                >
+                                    :disabled="!canEditSelectedTicket">
                                     <option v-for="s in props.statuses" :key="s" :value="s">
                                         {{ labels[s] ?? s }}
                                     </option>
@@ -1142,11 +1172,9 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Assignee</label>
-                                <select
-                                    v-model="editForm.assigned_to"
+                                <select v-model="editForm.assigned_to"
                                     class="mt-1 w-full cursor-pointer rounded border px-3 py-2"
-                                    :disabled="!canEditSelectedTicket"
-                                >
+                                    :disabled="!canEditSelectedTicket">
                                     <option :value="null">Unassigned</option>
                                     <option v-for="m in props.members" :key="m.id" :value="m.id">
                                         {{ m.name }} ({{ m.email }})
@@ -1159,7 +1187,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Deadline</label>
-                                <input v-model="editForm.deadline" type="date" class="mt-1 w-full rounded border px-3 py-2" />
+                                <input v-model="editForm.deadline" type="date"
+                                    class="mt-1 w-full rounded border px-3 py-2" />
                                 <div v-if="editForm.errors.deadline" class="mt-1 text-sm text-red-600">
                                     {{ editForm.errors.deadline }}
                                 </div>
@@ -1167,7 +1196,8 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Priority</label>
-                                <select v-model="editForm.priority" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                <select v-model="editForm.priority"
+                                    class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
@@ -1179,13 +1209,10 @@ function formatHours(h?: number | null) {
 
                             <div>
                                 <label class="text-sm">Type</label>
-                                <select v-model="editForm.type" class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
+                                <select v-model="editForm.type"
+                                    class="mt-1 w-full cursor-pointer rounded border px-3 py-2">
                                     <option disabled value="">Select type</option>
-                                    <option
-                                        v-for="type in ticketTypes"
-                                        :key="type.value"
-                                        :value="type.value"
-                                    >
+                                    <option v-for="type in ticketTypes" :key="type.value" :value="type.value">
                                         {{ type.label }}
                                     </option>
                                 </select>
@@ -1195,28 +1222,22 @@ function formatHours(h?: number | null) {
                             </div>
 
                             <div class="flex justify-end gap-2 sticky bottom-0 bg-background pt-3">
-                                <button
-                                    v-if="canEditSelectedTicket"
-                                    type="button"
+                                <button v-if="canEditSelectedTicket" type="button"
                                     class="cursor-pointer rounded border px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                    @click="destroyTicket"
-                                    :disabled="editForm.processing"
-                                >
+                                    @click="destroyTicket" :disabled="editForm.processing">
                                     Delete
                                 </button>
                                 <div v-else />
 
                                 <div class="flex gap-2">
-                                    <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm" @click="goToTicketDetails">
+                                    <button type="button" class="cursor-pointer rounded border px-3 py-2 text-sm"
+                                        @click="goToTicketDetails">
                                         View details
                                     </button>
 
-                                    <button
-                                        v-if="canEditSelectedTicket"
-                                        type="submit"
+                                    <button v-if="canEditSelectedTicket" type="submit"
                                         class="cursor-pointer rounded bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="editForm.processing"
-                                    >
+                                        :disabled="editForm.processing">
                                         <span v-if="editForm.processing">Saving…</span>
                                         <span v-else>Save</span>
                                     </button>
@@ -1235,17 +1256,21 @@ function formatHours(h?: number | null) {
 .fade-leave-active {
     transition: opacity 120ms ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
 }
+
 .pop-enter-active {
     transition: transform 140ms ease, opacity 140ms ease;
 }
+
 .pop-enter-from {
     transform: scale(0.98);
     opacity: 0;
 }
+
 .pop-leave-to {
     transform: scale(0.98);
     opacity: 0;
