@@ -7,6 +7,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { useToast } from '@/stores/toast';
+import { truncateText } from '@/utils/helpers';
 const toast = useToast();
 
 const page = usePage();
@@ -816,14 +817,14 @@ function initials(name?: string | null) {
 
                             <!-- Subtitle (same text style as screenshot) -->
                             <div class="mt-1 text-sm text-slate-500">
-                                {{ element.description ?? element.title }}
+                                {{ truncateText(element.description) ?? element.title }}
                             </div>
 
                             <!-- Bottom row: Priority (dot+text), Date (red), Assignee icon right -->
                             <div class="mt-4 flex items-center justify-between">
                                 <div class="flex items-center gap-4">
                                     <!-- Priority -->
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2" title="Priority">
                                         <span class="h-2.5 w-2.5 rounded-full"
                                             :class="priorityDotClasses(element.priority)"></span>
                                         <span class="text-sm font-medium"
@@ -833,7 +834,7 @@ function initials(name?: string | null) {
                                     </div>
 
                                     <!-- Deadline (red calendar + red date like screenshot) -->
-                                    <div v-if="element.deadline" class="flex items-center gap-2">
+                                    <div v-if="element.deadline" class="flex items-center gap-2" title="Deadline">
                                         <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                             stroke-linejoin="round" aria-hidden="true">
@@ -861,7 +862,7 @@ function initials(name?: string | null) {
         bg-slate-100
         flex items-center justify-center
         text-slate-500
-        overflow-hidden 
+        overflow-hidden
       " :title="element.assignee?.name ?? 'Unassigned'">
                                     <template v-if="element.assignee?.name">
                                         <span class="text-xs font-bold text-slate-600">
@@ -916,14 +917,14 @@ function initials(name?: string | null) {
 
                                 <!-- Subtitle (same text style as screenshot) -->
                                 <div class="mt-1 text-sm text-slate-500">
-                                    {{ element.description ?? element.title }}
+                                    {{ truncateText(element.description) ?? element.title }}
                                 </div>
 
                                 <!-- Bottom row: Priority (dot+text), Date (red), Assignee icon right -->
                                 <div class="mt-4 flex items-center justify-between">
                                     <div class="flex items-center gap-4">
                                         <!-- Priority -->
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2" title="Priority">
                                             <span class="h-2.5 w-2.5 rounded-full"
                                                 :class="priorityDotClasses(element.priority)"></span>
                                             <span class="text-sm font-medium"
@@ -933,7 +934,7 @@ function initials(name?: string | null) {
                                         </div>
 
                                         <!-- Deadline (red calendar + red date like screenshot) -->
-                                        <div v-if="element.deadline" class="flex items-center gap-2">
+                                        <div v-if="element.deadline" class="flex items-center gap-2" title="Deadline">
                                             <svg class="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none"
                                                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                                 stroke-linejoin="round" aria-hidden="true">

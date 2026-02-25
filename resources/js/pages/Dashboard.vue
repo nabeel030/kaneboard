@@ -69,6 +69,7 @@ type ProjectRiskRow = {
   forecast_end?: string | null;
   confidence?: number | null;
   risk_signals?: string[];
+  total_tracked_hours?: number;
 };
 
 const props = defineProps<{
@@ -281,6 +282,12 @@ const riskTicketsPaginator = computed(() => props.riskTickets ?? null);
 const riskTicketsLinks = computed(() => riskTicketsPaginator.value?.links ?? []);
 const riskTickets = computed(() => riskTicketsPaginator.value?.data ?? []);
 
+function formatHours(h?: number | null) {
+    if (h == null) return '';
+    if (h === 0) return '0h';
+    return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+}
+
 </script>
 
 <template>
@@ -473,10 +480,19 @@ const riskTickets = computed(() => riskTicketsPaginator.value?.data ?? []);
                   </div>
                 </div>
 
-                <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold"
-                  :class="healthPill(p.status)">
-                  {{ healthLabel(p.status) }}
-                </span>
+                <div>
+                    <span
+                        v-if="(p.total_tracked_hours ?? 0) > 0"
+                        class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 me-2"
+                        title="Tracked time"
+                        >
+                        ⏱ {{ formatHours(p.total_tracked_hours) }}
+                    </span>
+                    <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold"
+                      :class="healthPill(p.status)">
+                      {{ healthLabel(p.status) }}
+                    </span>
+                </div>
               </div>
 
               <div class="mt-3 grid grid-cols-2 gap-4">

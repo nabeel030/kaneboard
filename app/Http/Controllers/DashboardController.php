@@ -156,6 +156,7 @@ class DashboardController extends Controller
 
             $projects = Project::query()
                 ->whereIn('id', $accessibleProjectIds)
+                ->withTotalTrackedSeconds()
                 ->get(['id', 'name', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']);
 
             $rows = [];
@@ -166,6 +167,7 @@ class DashboardController extends Controller
 
                 $health = $service->calculate($p);
                 $status = $health['status'] ?? 'UNKNOWN';
+                $totalSeconds = (int) ($p->total_tracked_seconds ?? 0);
 
                 $rows[] = [
                     'id' => $p->id,
@@ -177,6 +179,7 @@ class DashboardController extends Controller
                     'forecast_end' => $health['forecast_end'] ?? null,
                     'confidence' => $health['confidence'] ?? null,
                     'risk_signals' => $health['risk_signals'] ?? [],
+                    'total_tracked_hours' => round($totalSeconds / 3600, 2),
                 ];
             }
 
