@@ -18,11 +18,13 @@ class ProjectController extends Controller
             ->where('owner_id', $userId)
             ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId))
             ->with('owner:id,name,email')
+            ->withTotalTrackedSeconds()
             ->latest()
             ->get(['id', 'owner_id', 'name', 'description', 'created_at', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']);
 
         return inertia('Projects/Index', [
             'projects' => $projects->map(function ($p) use ($userId) {
+                $totalSeconds = (int) ($p->total_tracked_seconds ?? 0);
                 return [
                     'id' => $p->id,
                     'owner_id' => $p->owner_id,
@@ -35,6 +37,8 @@ class ProjectController extends Controller
                     'end_date' => Carbon::parse($p->end_date)->format('Y-m-d'),
                     'baseline_start_date' => Carbon::parse($p->baseline_start_date)->format('Y-m-d'),
                     'baseline_end_date' => Carbon::parse($p->baseline_end_date)->format('Y-m-d'),
+                    'total_tracked_seconds' => $totalSeconds,
+                    'total_tracked_hours' => round($totalSeconds / 3600, 2),
                 ];
             }),
         ]);
@@ -84,10 +88,12 @@ class ProjectController extends Controller
     {
         $this->authorize('view', $project);
 
-        $project->load([
-            'owner:id,name,email',
-            'members:id,name,email',
-        ]);
+        $project = Project::query()
+            ->withTotalTrackedSeconds()
+            ->with(['owner:id,name,email', 'members:id,name,email'])
+            ->findOrFail($project->id);
+
+        $totalSeconds = (int) ($project->total_tracked_seconds ?? 0);
 
         $allMembers = User::query()
         ->where('id', '!=', $request->user()->id) // optional
@@ -98,7 +104,17 @@ class ProjectController extends Controller
         $projectHealth = $projectHealthService->calculate($project);
 
         return inertia('Projects/Show', [
-            'project' => $project->only(['id', 'owner_id', 'name', 'description', 'start_date','end_date','baseline_start_date','baseline_end_date']),
+            'project' => array_merge(
+                        $project->only([
+                            'id','owner_id','name','description',
+                            'start_date','end_date',
+                            'baseline_start_date','baseline_end_date'
+                        ]),
+                        [
+                            'total_tracked_seconds' => $totalSeconds,
+                            'total_tracked_hours' => round($totalSeconds / 3600, 2),
+                        ]
+                    ),            
             'owner' => $project->owner?->only(['id', 'name', 'email']),
             'members' => $project->members->map(fn ($u) => $u->only(['id', 'name', 'email'])),
             'allMembers' => $allMembers,

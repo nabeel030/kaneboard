@@ -51,6 +51,8 @@ const props = defineProps<{
     end_date?: string | null;
     baseline_start_date?: string | null;
     baseline_end_date?: string | null;
+    total_tracked_seconds?: number;
+    total_tracked_hours?: number;
   };
   owner: User | null;
   members: User[];
@@ -198,6 +200,13 @@ const initials = (name?: string) => {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map(p => p[0]?.toUpperCase()).join('');
 };
+
+function formatHours(h?: number | null) {
+    if (h == null) return '';
+    if (h === 0) return '0h';
+    return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+}
+
 </script>
 
 <template>
@@ -218,12 +227,21 @@ const initials = (name?: string) => {
                 {{ project.name }}
               </div>
 
-              <span
-                class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm"
-                :class="statusPill"
-              >
-                {{ statusLabel }}
-              </span>
+              <div>
+                <span
+                  v-if="(project.total_tracked_hours ?? 0) > 0"
+                  class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm me-2"
+                  title="Tracked time"
+                  >
+                  ⏱ {{ formatHours(project.total_tracked_hours) }}
+                </span>
+                <span
+                  class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm"
+                  :class="statusPill"
+                >
+                  {{ statusLabel }}
+                </span>
+              </div>
             </div>
 
             <div v-if="owner" class="mt-1 text-sm text-muted-foreground">

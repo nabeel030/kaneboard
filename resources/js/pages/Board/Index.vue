@@ -794,7 +794,7 @@ function initials(name?: string | null) {
     shadow-sm
     transition
     hover:shadow-md
-    active:scale-[0.99]
+    active:scale-[0.99] cursor-pointer
   " @click="openEditModal(element)">
                             <!-- Top row: #id left, Type chip right -->
                             <div class="flex items-start justify-between gap-3">
@@ -861,7 +861,7 @@ function initials(name?: string | null) {
         bg-slate-100
         flex items-center justify-center
         text-slate-500
-        overflow-hidden
+        overflow-hidden 
       " :title="element.assignee?.name ?? 'Unassigned'">
                                     <template v-if="element.assignee?.name">
                                         <span class="text-xs font-bold text-slate-600">
@@ -894,7 +894,7 @@ function initials(name?: string | null) {
                                     shadow-sm
                                     transition
                                     hover:shadow-md
-                                    active:scale-[0.99]
+                                    active:scale-[0.99] cursor-pointer
                                 " @click="openEditModal(element)">
                                 <!-- Top row: #id left, Type chip right -->
                                 <div class="flex items-start justify-between gap-3">

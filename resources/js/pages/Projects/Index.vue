@@ -23,6 +23,8 @@ type Project = {
   end_date?: string | null;
   baseline_start_date?: string | null;
   baseline_end_date?: string | null;
+  total_tracked_seconds?: number;
+  total_tracked_hours?: number;
 };
 
 const props = defineProps<{ projects: Project[] }>();
@@ -147,6 +149,13 @@ function rebaselineToPlan() {
   editForm.baseline_start_date = editForm.start_date;
   editForm.baseline_end_date = editForm.end_date;
 }
+
+function formatHours(h?: number | null) {
+    if (h == null) return '';
+    if (h === 0) return '0h';
+    return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+}
+
 </script>
 
 <template>
@@ -179,12 +188,21 @@ function rebaselineToPlan() {
               {{ p.name }}
             </Link>
 
-            <span
-              v-if="p.is_owner !== undefined"
-              class="rounded border px-2 py-1 text-xs text-muted-foreground"
-            >
-              {{ p.is_owner ? 'Owner' : 'Member' }}
-            </span>
+            <div>
+              <span
+                  v-if="(p.total_tracked_hours ?? 0) > 0"
+                  class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 me-2"
+                  title="Tracked time"
+                  >
+                  ⏱ {{ formatHours(p.total_tracked_hours) }}
+              </span>
+              <span
+                v-if="p.is_owner !== undefined"
+                class="rounded border px-2 py-1 text-xs text-muted-foreground"
+              >
+                {{ p.is_owner ? 'Owner' : 'Member' }}
+              </span>
+            </div>
           </div>
 
           <div v-if="p.owner" class="mt-1 text-sm text-muted-foreground">
