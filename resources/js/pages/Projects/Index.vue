@@ -23,6 +23,7 @@ type Project = {
   end_date?: string | null;
   baseline_start_date?: string | null;
   baseline_end_date?: string | null;
+
   total_tracked_seconds?: number;
   total_tracked_hours?: number;
 };
@@ -69,6 +70,7 @@ function openCreate() {
   createForm.clearErrors();
 
   ui.createUseBaselineSameAsPlan = false;
+
   const today = new Date();
   const end = new Date();
   end.setDate(end.getDate() + 14);
@@ -103,6 +105,7 @@ function submitCreate() {
 
 function openEdit(p: Project) {
   ui.editingId = p.id;
+
   editForm.clearErrors();
   editForm.name = p.name;
   editForm.description = p.description ?? '';
@@ -145,17 +148,21 @@ const editDateRangeInvalid = computed(() =>
 );
 
 function rebaselineToPlan() {
-  // One-click: set baseline = current plan (enterprise re-baseline)
   editForm.baseline_start_date = editForm.start_date;
   editForm.baseline_end_date = editForm.end_date;
 }
 
 function formatHours(h?: number | null) {
-    if (h == null) return '';
-    if (h === 0) return '0h';
-    return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
+  if (h == null) return '';
+  if (h === 0) return '0h';
+  return `${h.toFixed(h % 1 === 0 ? 0 : 1)} h`;
 }
 
+function dateRange(p: Project) {
+  const s = p.start_date ?? '—';
+  const e = p.end_date ?? '—';
+  return `${s} → ${e}`;
+}
 </script>
 
 <template>
@@ -174,62 +181,124 @@ function formatHours(h?: number | null) {
         </button>
       </div>
 
-      <div class="grid gap-3 md:grid-cols-2">
+      <!-- GRID -->
+      <div class="grid gap-4 md:grid-cols-2">
         <div
           v-for="p in props.projects"
           :key="p.id"
-          class="rounded-xl border p-4 hover:bg-muted/30"
+          class="
+            group relative overflow-hidden rounded-2xl border bg-white p-5
+            shadow-sm transition
+            hover:-translate-y-[1px] hover:shadow-md hover:border-zinc-300
+            dark:bg-zinc-950 dark:border-zinc-800 dark:hover:border-zinc-700
+            focus-within:-translate-y-[1px] focus-within:shadow-md
+          "
         >
-          <div class="flex items-start justify-between gap-3">
-            <Link
-              :href="projectRoutes.show(p.id)"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              {{ p.name }}
-            </Link>
+          <!-- hover/active accent (like screenshot) -->
+          <div
+            class="
+              pointer-events-none absolute inset-0 opacity-0 transition
+              group-hover:opacity-100 group-focus-within:opacity-100
+            "
+          >
+            <div class="absolute left-0 top-0 h-full w-1 bg-red-500"></div>
+            <div class="absolute inset-0 bg-red-50/60 dark:bg-red-950/10"></div>
+          </div>
 
-            <div>
-              <span
-                  v-if="(p.total_tracked_hours ?? 0) > 0"
-                  class="rounded-full border px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-900 dark:text-zinc-200 me-2"
-                  title="Tracked time"
-                  >
-                  ⏱ {{ formatHours(p.total_tracked_hours) }}
-              </span>
-              <span
-                v-if="p.is_owner !== undefined"
-                class="rounded border px-2 py-1 text-xs text-muted-foreground"
+          <div class="relative">
+            <!-- TOP ROW -->
+            <div class="flex items-start justify-between gap-3">
+              <Link
+                :href="projectRoutes.show(p.id)"
+                class="text-lg font-semibold leading-tight hover:underline"
               >
-                {{ p.is_owner ? 'Owner' : 'Member' }}
+                {{ p.name }}
+              </Link>
+
+              <div class="flex items-center gap-2">
+                <span
+                  v-if="(p.total_tracked_hours ?? 0) > 0"
+                  class="
+                    inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium
+                    bg-zinc-50 text-zinc-800 border-zinc-200
+                    dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800
+                  "
+                  title="Tracked time"
+                >
+                  <span class="text-[13px]">🕒</span>
+                  {{ formatHours(p.total_tracked_hours) }}
+                </span>
+
+                <span
+                  v-if="p.is_owner !== undefined"
+                  class="
+                    inline-flex items-center rounded-full border px-2.5 py-1 text-xs
+                    bg-white text-zinc-700 border-zinc-200
+                    dark:bg-zinc-950 dark:text-zinc-200 dark:border-zinc-800
+                  "
+                >
+                  {{ p.is_owner ? 'Owner' : 'Member' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- OWNER LINE -->
+            <div v-if="p.owner" class="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <!-- user icon -->
+              <svg class="h-4 w-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21a8 8 0 0 0-16 0"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+
+              <span class="font-medium text-foreground">{{ p.owner.name }}</span>
+              <span v-if="p.owner.email" class="text-muted-foreground">
+                ({{ p.owner.email }})
               </span>
             </div>
-          </div>
 
-          <div v-if="p.owner" class="mt-1 text-sm text-muted-foreground">
-            Owner: {{ p.owner.name }}<span v-if="p.owner.email"> ({{ p.owner.email }})</span>
-          </div>
+            <!-- DESCRIPTION -->
+            <div v-if="p.description" class="mt-3 text-sm text-muted-foreground">
+              {{ p.description }}
+            </div>
 
-          <div v-if="p.description" class="mt-1 text-sm text-muted-foreground">
-            {{ p.description }}
-          </div>
+            <!-- DIVIDER -->
+            <div class="mt-4 border-t border-zinc-200/70 dark:border-zinc-800/70"></div>
 
-          <div v-if="p.start_date || p.end_date" class="mt-2 text-sm text-muted-foreground">
-            Plan:
-            <span class="font-medium text-foreground">{{ p.start_date ?? '—' }}</span>
-            →
-            <span class="font-medium text-foreground">{{ p.end_date ?? '—' }}</span>
-          </div>
+            <!-- BOTTOM ROW -->
+            <div class="mt-4 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2 text-sm">
+                <!-- calendar icon -->
+                <svg class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 2v4"></path>
+                  <path d="M16 2v4"></path>
+                  <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                  <path d="M3 10h18"></path>
+                </svg>
 
-          <div class="mt-3 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              class="cursor-pointer rounded border px-3 py-2 text-sm hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
-              @click="openEdit(p)"
-              :disabled="!canEditProject(p)"
-              title="Only the owner can edit"
-            >
-              Edit
-            </button>
+                <span class="font-medium text-foreground">
+                  {{ dateRange(p) }}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                class="
+                  inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm
+                  text-muted-foreground hover:text-foreground hover:bg-zinc-100
+                  dark:hover:bg-zinc-900 cursor-pointer
+                "
+                @click="openEdit(p)"
+                :disabled="!canEditProject(p)"
+                title="Only the owner can edit"
+              >
+                <!-- pencil icon -->
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20h9"></path>
+                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                </svg>
+                <span>Edit</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -331,7 +400,6 @@ function formatHours(h?: number | null) {
                   End date must be on or after start date.
                 </div>
 
-                <!-- Baseline -->
                 <div class="mt-3 flex items-center gap-2">
                   <input
                     id="baselineSame"
