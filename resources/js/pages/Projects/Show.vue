@@ -12,6 +12,8 @@ type User = {
   id: number;
   name: string;
   email?: string;
+  tracked_seconds?: number,
+  tracked_hours?: number
 };
 
 type ProjectHealth = {
@@ -556,23 +558,30 @@ function formatHours(h?: number | null) {
             </div>
 
             <div class="flex items-center gap-2">
-              <span
-                v-if="m.id === project.owner_id"
-                class="rounded-full border bg-white px-2 py-1 text-xs text-muted-foreground shadow-sm
-                       dark:bg-slate-950/30 dark:border-slate-800"
-              >
-                Owner
-              </span>
+                <span
+                    v-if="(m.tracked_hours ?? 0) > 0"
+                    class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm me-2"
+                    title="Tracked time"
+                    >
+                    ⏱ {{ formatHours(m.tracked_hours) }}
+                </span>
+                <span
+                    v-if="m.id === project.owner_id"
+                    class="rounded-full border bg-white px-2 py-1 text-xs text-muted-foreground shadow-sm
+                        dark:bg-slate-950/30 dark:border-slate-800"
+                >
+                    Owner
+                </span>
 
-              <button
-                v-if="can.manageMembers && m.id !== project.owner_id"
-                type="button"
-                class="cursor-pointer rounded-xl border bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 shadow-sm
-                       dark:bg-slate-950/30 dark:border-slate-800 dark:text-red-300 dark:hover:bg-red-950/30"
-                @click="removeMember(m.id)"
-              >
-                Remove
-              </button>
+                <button
+                    v-if="can.manageMembers && m.id !== project.owner_id"
+                    type="button"
+                    class="cursor-pointer rounded-xl border bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 shadow-sm
+                        dark:bg-slate-950/30 dark:border-slate-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                    @click="removeMember(m.id)"
+                >
+                    Remove
+                </button>
             </div>
           </div>
         </div>

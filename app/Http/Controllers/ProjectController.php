@@ -16,7 +16,7 @@ class ProjectController extends Controller
 
         $projects = Project::query()
             ->where('owner_id', $userId)
-            ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId))
+            ->orWhereHas('members', fn($q) => $q->where('users.id', $userId))
             ->with('owner:id,name,email')
             ->withTotalTrackedSeconds()
             ->latest()
@@ -56,10 +56,10 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'start_date' => ['nullable','date'],
-            'end_date' => ['nullable','date','after_or_equal:start_date'],
-            'baseline_start_date' => ['nullable','date'],
-            'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'baseline_start_date' => ['nullable', 'date'],
+            'baseline_end_date' => ['nullable', 'date', 'after_or_equal:baseline_start_date'],
         ]);
 
         $project = Project::create([
@@ -77,7 +77,7 @@ class ProjectController extends Controller
             $request->user()->id => ['role' => 'owner'],
         ]);
 
-        if($project) {
+        if ($project) {
             return back()->with('success', 'Project created successfully.');
         }
 
@@ -93,37 +93,56 @@ class ProjectController extends Controller
             ->with(['owner:id,name,email', 'members:id,name,email'])
             ->findOrFail($project->id);
 
-        $totalSeconds = (int) ($project->total_tracked_seconds ?? 0);
-
-        $allMembers = User::query()
-        ->where('id', '!=', $request->user()->id) // optional
-        ->orderBy('name')
-        ->get(['id','name','email']);
+        $allMembers = collect([$project->owner])
+            ->filter()
+            ->merge($project->members)
+            ->unique('id')
+            ->values()
+            ->map(fn($u) => $u->only(['id', 'name', 'email']));
 
         $projectHealthService = new ProjectHealthService();
         $projectHealth = $projectHealthService->calculate($project);
 
+        $secondsByUser = $project->trackedSecondsByUser();
+
+        // owner + members (unique)
+        $people = collect([$project->owner])
+            ->filter()
+            ->merge($project->members)
+            ->unique('id')
+            ->values();
+
+        // Attach tracked time directly
+        $membersWithTracking = $people->map(function ($u) use ($secondsByUser) {
+            $sec = (int) ($secondsByUser[$u->id] ?? 0);
+
+            return [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'tracked_seconds' => $sec,
+                'tracked_hours' => round($sec / 3600, 2),
+            ];
+        })->sortByDesc('tracked_seconds')->values();
+
+        $totalSeconds = (int) ($project->total_tracked_seconds ?? 0);
+
         return inertia('Projects/Show', [
             'project' => array_merge(
-                        $project->only([
-                            'id','owner_id','name','description',
-                            'start_date','end_date',
-                            'baseline_start_date','baseline_end_date'
-                        ]),
-                        [
-                            'total_tracked_seconds' => $totalSeconds,
-                            'total_tracked_hours' => round($totalSeconds / 3600, 2),
-                        ]
-                    ),            
+                $project->only(['id', 'owner_id', 'name', 'description', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']),
+                [
+                    'total_tracked_seconds' => $totalSeconds,
+                    'total_tracked_hours' => round($totalSeconds / 3600, 2),
+                ]
+            ),
             'owner' => $project->owner?->only(['id', 'name', 'email']),
-            'members' => $project->members->map(fn ($u) => $u->only(['id', 'name', 'email'])),
-            'allMembers' => $allMembers,
+            'members' => $membersWithTracking,
             'can' => [
                 'update' => $request->user()->can('update', $project),
                 'delete' => $request->user()->can('delete', $project),
                 'manageMembers' => $request->user()->can('manageMembers', $project),
             ],
-            'projectHealth' => $projectHealth
+            'projectHealth' => $projectHealth,
         ]);
     }
 
@@ -133,9 +152,15 @@ class ProjectController extends Controller
 
         return inertia('Projects/Edit', [
             'project' => $project->only([
-                    'id', 'owner_id', 'name', 'description', 'start_date',
-                    'end_date', 'baseline_start_date', 'baseline_end_date'
-                ]),
+                'id',
+                'owner_id',
+                'name',
+                'description',
+                'start_date',
+                'end_date',
+                'baseline_start_date',
+                'baseline_end_date'
+            ]),
         ]);
     }
 
@@ -146,10 +171,10 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'start_date' => ['nullable','date'],
-            'end_date' => ['nullable','date','after_or_equal:start_date'],
-            'baseline_start_date' => ['nullable','date'],
-            'baseline_end_date' => ['nullable','date','after_or_equal:baseline_start_date'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'baseline_start_date' => ['nullable', 'date'],
+            'baseline_end_date' => ['nullable', 'date', 'after_or_equal:baseline_start_date'],
         ]);
 
         $updated = $project->update([
@@ -161,12 +186,11 @@ class ProjectController extends Controller
             'baseline_end_date' => $data['baseline_end_date'] ?? null,
         ]);
 
-        if($updated) {
+        if ($updated) {
             return back()->with('success', 'Project updated successfully.');
         }
 
         return back()->with('error', 'Something went wrong.');
-
     }
 
     public function destroy(Request $request, Project $project)
@@ -175,7 +199,7 @@ class ProjectController extends Controller
 
         $deleted = $project->delete();
 
-        if($deleted) {
+        if ($deleted) {
             return redirect()->route('projects.index')->with('success', 'Project deleted successfully.');
         }
 

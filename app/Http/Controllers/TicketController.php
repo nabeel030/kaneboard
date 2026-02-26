@@ -100,7 +100,7 @@ class TicketController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        $timer = $this->buildTimerState($ticket->id, $userId);
+        $timer = $this->buildTimerState($ticket->id);
 
         return inertia('Ticket/Show', [
             'ticket' => $ticket,
@@ -176,11 +176,13 @@ class TicketController extends Controller
         return back()->with('error', 'Something went wrong.');
     }
 
-    private function buildTimerState(int $ticketId, int $userId): array
+    private function buildTimerState(int $ticketId, $userId = null): array
     {
         $endedSeconds = (int) TicketTimeLog::query()
             ->where('ticket_id', $ticketId)
-            ->where('user_id', $userId)
+            ->when($userId, function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
             ->whereNotNull('ended_at')
             ->sum(DB::raw('COALESCE(duration_seconds, TIMESTAMPDIFF(SECOND, started_at, ended_at))'));
 

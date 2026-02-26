@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class Project extends Model
 {
@@ -64,5 +65,28 @@ class Project extends Model
         return $query->addSelect([
             'total_tracked_seconds' => $sub,
         ]);
+    }
+
+    public function trackedSecondsByUser(): Collection
+    {
+        $now = now();
+
+        return DB::table('ticket_time_logs')
+            ->join('tickets', 'tickets.id', '=', 'ticket_time_logs.ticket_id')
+            ->where('tickets.project_id', $this->id)
+            ->groupBy('ticket_time_logs.user_id')
+            ->selectRaw('ticket_time_logs.user_id as user_id')
+            ->selectRaw("
+            COALESCE(SUM(
+                CASE
+                    WHEN ticket_time_logs.ended_at IS NULL
+                        THEN TIMESTAMPDIFF(SECOND, ticket_time_logs.started_at, ?)
+                    ELSE COALESCE(ticket_time_logs.duration_seconds,
+                        TIMESTAMPDIFF(SECOND, ticket_time_logs.started_at, ticket_time_logs.ended_at)
+                    )
+                END
+            ), 0) as tracked_seconds
+        ", [$now])
+            ->pluck('tracked_seconds', 'user_id');
     }
 }
