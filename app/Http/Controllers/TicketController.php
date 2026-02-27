@@ -188,7 +188,9 @@ class TicketController extends Controller
 
         $runningLog = TicketTimeLog::query()
             ->where('ticket_id', $ticketId)
-            ->where('user_id', $userId)
+            ->when($userId, function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
             ->whereNull('ended_at')
             ->latest('started_at')
             ->first();

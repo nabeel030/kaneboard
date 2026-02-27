@@ -93,12 +93,10 @@ class ProjectController extends Controller
             ->with(['owner:id,name,email', 'members:id,name,email'])
             ->findOrFail($project->id);
 
-        $allMembers = collect([$project->owner])
-            ->filter()
-            ->merge($project->members)
-            ->unique('id')
-            ->values()
-            ->map(fn($u) => $u->only(['id', 'name', 'email']));
+        $allMembers = User::query()
+            ->where('id', '!=', $request->user()->id)
+            ->orderBy('name')
+            ->get(['id','name','email']);
 
         $projectHealthService = new ProjectHealthService();
         $projectHealth = $projectHealthService->calculate($project);
@@ -137,6 +135,7 @@ class ProjectController extends Controller
             ),
             'owner' => $project->owner?->only(['id', 'name', 'email']),
             'members' => $membersWithTracking,
+            'allMembers' => $allMembers,
             'can' => [
                 'update' => $request->user()->can('update', $project),
                 'delete' => $request->user()->can('delete', $project),
