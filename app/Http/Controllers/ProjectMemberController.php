@@ -10,6 +10,9 @@ class ProjectMemberController extends Controller
     public function store(Request $request, Project $project)
     {
         $this->authorize('manageMembers', $project);
+
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless((int) $project->workspace_id === $workspaceId, 404);
     
         $data = $request->validate([
             'user_ids' => ['required', 'array', 'min:1'],
@@ -36,7 +39,9 @@ class ProjectMemberController extends Controller
     {
         $this->authorize('manageMembers', $project);
 
-        // prevent removing owner by mistake if you also store owner in pivot
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless((int) $project->workspace_id === $workspaceId, 404);
+
         $project->members()->detach($user->id);
 
         return back();

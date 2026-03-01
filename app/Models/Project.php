@@ -17,6 +17,7 @@ class Project extends Model
         'end_date',
         'baseline_start_date',
         'baseline_end_date',
+        'workspace_id',
     ];
 
     protected $casts = [
@@ -88,5 +89,16 @@ class Project extends Model
             ), 0) as tracked_seconds
         ", [$now])
             ->pluck('tracked_seconds', 'user_id');
+    }
+
+    public function workspace()
+    {
+        return $this->belongsTo(Workspace::class);
+    }
+    
+    public function scopeForCurrentWorkspace($query): \Illuminate\Database\Eloquent\Builder
+    {
+        $wid = (int) session('current_workspace_id');
+        return $query->where('workspace_id', $wid);
     }
 }

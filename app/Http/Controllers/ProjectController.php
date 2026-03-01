@@ -13,18 +13,25 @@ class ProjectController extends Controller
     public function index(Request $request)
     {
         $userId = $request->user()->id;
+        $workspaceId = (int) session('current_workspace_id');
+
+        abort_unless($workspaceId > 0, 403);
 
         $projects = Project::query()
-            ->where('owner_id', $userId)
-            ->orWhereHas('members', fn($q) => $q->where('users.id', $userId))
+            ->where('workspace_id', $workspaceId)
+            ->where(function ($q) use ($userId) {
+                $q->where('owner_id', $userId)
+                    ->orWhereHas('members', fn($mq) => $mq->where('users.id', $userId));
+            })
             ->with('owner:id,name,email')
             ->withTotalTrackedSeconds()
             ->latest()
-            ->get(['id', 'owner_id', 'name', 'description', 'created_at', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']);
+            ->get(['id', 'workspace_id', 'owner_id', 'name', 'description', 'created_at', 'start_date', 'end_date', 'baseline_start_date', 'baseline_end_date']);
 
         return inertia('Projects/Index', [
             'projects' => $projects->map(function ($p) use ($userId) {
                 $totalSeconds = (int) ($p->total_tracked_seconds ?? 0);
+
                 return [
                     'id' => $p->id,
                     'owner_id' => $p->owner_id,
@@ -33,10 +40,10 @@ class ProjectController extends Controller
                     'created_at' => $p->created_at,
                     'owner' => $p->owner?->only(['id', 'name', 'email']),
                     'is_owner' => $p->owner_id === $userId,
-                    'start_date' => Carbon::parse($p->start_date)->format('Y-m-d'),
-                    'end_date' => Carbon::parse($p->end_date)->format('Y-m-d'),
-                    'baseline_start_date' => Carbon::parse($p->baseline_start_date)->format('Y-m-d'),
-                    'baseline_end_date' => Carbon::parse($p->baseline_end_date)->format('Y-m-d'),
+                    'start_date' => $p->start_date ? $p->start_date->format('Y-m-d') : null,
+                    'end_date' => $p->end_date ? $p->end_date->format('Y-m-d') : null,
+                    'baseline_start_date' => $p->baseline_start_date ? $p->baseline_start_date->format('Y-m-d') : null,
+                    'baseline_end_date' => $p->baseline_end_date ? $p->baseline_end_date->format('Y-m-d') : null,
                     'total_tracked_seconds' => $totalSeconds,
                     'total_tracked_hours' => round($totalSeconds / 3600, 2),
                 ];
@@ -53,6 +60,9 @@ class ProjectController extends Controller
 
     public function store(Request $request)
     {
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless($workspaceId > 0, 403);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -63,6 +73,7 @@ class ProjectController extends Controller
         ]);
 
         $project = Project::create([
+            'workspace_id' => $workspaceId,
             'owner_id' => $request->user()->id,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
@@ -72,31 +83,35 @@ class ProjectController extends Controller
             'baseline_end_date' => $data['baseline_end_date'] ?? null,
         ]);
 
-        // Make sure owner can access via pivot too (optional but handy)
         $project->members()->syncWithoutDetaching([
             $request->user()->id => ['role' => 'owner'],
         ]);
 
-        if ($project) {
-            return back()->with('success', 'Project created successfully.');
-        }
-
-        return back()->with('error', 'Something went wrong.');
+        return back()->with('success', 'Project created successfully.');
     }
 
     public function show(Request $request, Project $project)
     {
         $this->authorize('view', $project);
 
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless($workspaceId > 0, 403);
+        abort_unless((int) $project->workspace_id === $workspaceId, 404);
+
         $project = Project::query()
             ->withTotalTrackedSeconds()
             ->with(['owner:id,name,email', 'members:id,name,email'])
             ->findOrFail($project->id);
 
-        $allMembers = User::query()
-            ->where('id', '!=', $request->user()->id)
-            ->orderBy('name')
-            ->get(['id','name','email']);
+        $workspace = $request->user()
+            ->workspaces()
+            ->where('workspaces.id', $workspaceId)
+            ->firstOrFail();
+        
+        $allMembers = $workspace->users()
+            ->where('users.id', '!=', $request->user()->id)
+            ->orderBy('users.name')
+            ->get(['users.id','users.name','users.email']);
 
         $projectHealthService = new ProjectHealthService();
         $projectHealth = $projectHealthService->calculate($project);
@@ -167,6 +182,10 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless($workspaceId > 0, 403);
+        abort_unless((int) $project->workspace_id === $workspaceId, 404);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -195,6 +214,10 @@ class ProjectController extends Controller
     public function destroy(Request $request, Project $project)
     {
         $this->authorize('delete', $project);
+
+        $workspaceId = (int) session('current_workspace_id');
+        abort_unless($workspaceId > 0, 403);
+        abort_unless((int) $project->workspace_id === $workspaceId, 404);
 
         $deleted = $project->delete();
 

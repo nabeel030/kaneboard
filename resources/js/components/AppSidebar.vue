@@ -19,6 +19,8 @@ import { type NavItem } from '@/types';
 import projects from '@/routes/projects';
 import members from '@/routes/members';
 import board from '@/routes/kaneboard';
+import roles from '@/routes/roles';
+import workspaces from '@/routes/workspaces';
 
 import AppLogo from './AppLogo.vue';
 
@@ -27,6 +29,8 @@ const mainNavItems: NavItem[] = [
     { title: 'Members', href: members.index(), icon: Users },
     { title: 'Projects', href: projects.index(), icon: FolderKanban },
     { title: 'Ticket Board', href: board.index(), icon: Kanban },
+    { title: 'Roles', href: roles.index(), icon: Users },
+    { title: 'Workspaces', href: workspaces.index(), icon: Users },
 ];
 
 const footerNavItems: NavItem[] = [
